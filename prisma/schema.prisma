@@ -222,11 +222,13 @@ model RecordingPhoto {
   photoSize     Int?      // Size in bytes
   caption       String?
   createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
 
   // Relations
   recording     Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
 
   @@index([recordingId])
+  @@index([deletedAt])
 }
 
 model Tour {
@@ -261,6 +263,7 @@ model TourStop {
   notes           String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   // Relations
   tour            Tour      @relation(fields: [tourId], references: [id], onDelete: Cascade)
@@ -270,6 +273,7 @@ model TourStop {
   @@unique([tourId, houseId])
   @@index([tourId])
   @@index([orderIndex])
+  @@index([deletedAt])
 }
 
 model BuyerRealtor {
@@ -305,6 +309,7 @@ model Invite {
   rejectedAt      DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
 
   // Relations
   realtor         User          @relation(fields: [realtorId], references: [id])
@@ -313,6 +318,7 @@ model Invite {
   @@index([email])
   @@index([token])
   @@index([status])
+  @@index([deletedAt])
 }
 
 model DreamHouseProfile {

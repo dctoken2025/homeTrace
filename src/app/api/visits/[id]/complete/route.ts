@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
 import { getRequestUser } from '@/lib/auth'
 import { z } from 'zod'
 import { OverallImpression } from '@prisma/client'
+import { calculateMatchScore } from '@/lib/ai-match'
+import { DreamHousePreferences } from '@/lib/ai'
 
 interface RouteParams {
   params: Promise<{
@@ -139,6 +141,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
+    // Trigger match score calculation in the background
+    triggerMatchScoreCalculation(updated.buyerId, updated.house.id).catch((err) => {
+      console.error('Failed to calculate match score:', err)
+    })
+
     return successResponse({
         message: 'Visit completed',
         visit: {
@@ -159,5 +166,70 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   } catch (error) {
     console.error('Complete visit error:', error)
     return errorResponse(ErrorCode.INTERNAL_ERROR, 'Failed to complete visit')
+  }
+}
+
+/**
+ * Trigger match score calculation for a house after visit completion
+ * This runs asynchronously so it doesn't block the response
+ */
+async function triggerMatchScoreCalculation(buyerId: string, houseId: string): Promise<void> {
+  try {
+    // Get buyer's dream house profile
+    const dreamHouseProfile = await prisma.dreamHouseProfile.findUnique({
+      where: { buyerId },
+    })
+
+    if (!dreamHouseProfile?.profile) {
+      console.log('No dream house profile found, skipping match score calculation')
+      return
+    }
+
+    // Get house data
+    const house = await prisma.house.findUnique({
+      where: { id: houseId },
+    })
+
+    if (!house) {
+      console.log('House not found, skipping match score calculation')
+      return
+    }
+
+    // Prepare house data for AI
+    const houseData = {
+      id: house.id,
+      address: house.address,
+      city: house.city,
+      state: house.state,
+      price: house.price,
+      bedrooms: house.bedrooms,
+      bathrooms: house.bathrooms,
+      sqft: house.sqft,
+      yearBuilt: house.yearBuilt,
+      propertyType: house.propertyType,
+      features: house.features,
+      description: house.description,
+    }
+
+    // Calculate match score using AI
+    const preferences = dreamHouseProfile.profile as DreamHousePreferences
+    const matchResult = await calculateMatchScore(houseData, preferences)
+
+    // Update HouseBuyer with match score
+    await prisma.houseBuyer.updateMany({
+      where: {
+        buyerId,
+        houseId,
+        deletedAt: null,
+      },
+      data: {
+        matchScore: matchResult.score,
+      },
+    })
+
+    console.log(`Match score calculated for house ${houseId}: ${matchResult.score}`)
+  } catch (error) {
+    console.error('Error calculating match score:', error)
+    throw error
   }
 }

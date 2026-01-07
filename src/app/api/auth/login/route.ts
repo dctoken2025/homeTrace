@@ -1,12 +1,31 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { generateToken } from '@/lib/jwt'
 import { loginSchema, validateRequest, formatZodErrors } from '@/lib/validations'
 import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
+import { checkRateLimit, getIdentifier, getRateLimitHeaders } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting for login attempts
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip')
+    const identifier = getIdentifier(ip)
+    const rateLimit = checkRateLimit(identifier, 'login')
+
+    if (!rateLimit.success) {
+      const response = errorResponse(
+        ErrorCode.RATE_LIMIT_EXCEEDED,
+        'Too many login attempts. Please try again later.'
+      )
+      // Add rate limit headers
+      const headers = getRateLimitHeaders(rateLimit)
+      Object.entries(headers).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
     const body = await request.json()
 
     // Validate request body

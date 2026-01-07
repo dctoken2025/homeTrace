@@ -5,7 +5,8 @@ import { randomUUID } from 'crypto'
 
 // Storage configuration
 const STORAGE_BASE = process.env.STORAGE_PATH || './uploads'
-const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+const MAX_AUDIO_SIZE = 50 * 1024 * 1024 // 50MB for audio (~10 min recording)
+const MAX_PHOTO_SIZE = 10 * 1024 * 1024 // 10MB for photos
 const ALLOWED_AUDIO_TYPES = ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/ogg']
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 
@@ -72,9 +73,9 @@ export async function uploadAudio(
     ? Buffer.from(await file.arrayBuffer())
     : file
 
-  // Validate file size
-  if (buffer.length > MAX_FILE_SIZE) {
-    const error = new Error(`File too large: ${buffer.length} bytes. Max: ${MAX_FILE_SIZE} bytes`) as StorageError
+  // Validate file size (50MB for audio)
+  if (buffer.length > MAX_AUDIO_SIZE) {
+    const error = new Error(`Audio file too large: ${Math.round(buffer.length / 1024 / 1024)}MB. Max: 50MB`) as StorageError
     error.code = 'FILE_TOO_LARGE'
     throw error
   }
@@ -126,9 +127,9 @@ export async function uploadPhoto(
     ? Buffer.from(await file.arrayBuffer())
     : file
 
-  // Validate file size
-  if (buffer.length > MAX_FILE_SIZE) {
-    const error = new Error(`File too large: ${buffer.length} bytes. Max: ${MAX_FILE_SIZE} bytes`) as StorageError
+  // Validate file size (10MB for photos)
+  if (buffer.length > MAX_PHOTO_SIZE) {
+    const error = new Error(`Photo file too large: ${Math.round(buffer.length / 1024 / 1024)}MB. Max: 10MB`) as StorageError
     error.code = 'FILE_TOO_LARGE'
     throw error
   }

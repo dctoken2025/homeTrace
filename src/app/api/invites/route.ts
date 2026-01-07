@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { successResponse, errorResponse, ErrorCode, paginatedResponse } from '@/lib/api-response'
 import { getRequestUser } from '@/lib/auth'
+import { sendInviteEmail } from '@/lib/email'
 import { z } from 'zod'
 import { addDays } from 'date-fns'
 
@@ -182,8 +183,23 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // TODO: Send email notification to the invitee
-    // await sendInviteEmail(email, invite.token, name)
+    // Get realtor name for the email
+    const realtor = await prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { name: true },
+    })
+
+    // Send invite email
+    const emailResult = await sendInviteEmail(
+      email,
+      realtor?.name || 'Your realtor',
+      invite.token
+    )
+
+    if (!emailResult.success) {
+      console.warn('Failed to send invite email:', emailResult.error)
+      // Don't fail the request, just log the warning
+    }
 
     return successResponse({
         message: 'Invite sent successfully',
