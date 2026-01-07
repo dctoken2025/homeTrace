@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import useAudioRecorder from '@/hooks/useAudioRecorder';
-import { formatDuration } from '@/data/mock';
+import { formatDuration } from '@/lib/utils';
 
 interface AudioRecorderProps {
   onRecordingComplete: (blob: Blob, duration: number) => void;
@@ -39,7 +39,7 @@ export default function AudioRecorder({ onRecordingComplete, onRecordingStart }:
         className={`w-24 h-24 rounded-full flex items-center justify-center transition-all transform active:scale-95 ${
           isRecording
             ? 'bg-red-500 hover:bg-red-600 animate-pulse'
-            : 'bg-blue-600 hover:bg-blue-700'
+            : 'bg-[#006AFF] hover:bg-[#0D47A1]'
         }`}
       >
         {isRecording ? (

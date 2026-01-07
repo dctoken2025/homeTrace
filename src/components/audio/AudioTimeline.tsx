@@ -2,7 +2,7 @@
 
 import { AudioRecording, DEFAULT_ROOMS } from '@/types';
 import AudioPlayer from './AudioPlayer';
-import { formatDuration } from '@/data/mock';
+import { formatDuration } from '@/lib/utils';
 
 interface AudioTimelineProps {
   recordings: AudioRecording[];

@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// HomeTrace - Prisma Schema
+// All main entities include deletedAt for soft delete
 
 generator client {
   provider = "prisma-client-js"
@@ -10,5 +7,407 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+  BUYER
+  REALTOR
+  ADMIN
+}
+
+enum VisitStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TourStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum OverallImpression {
+  LOVED
+  LIKED
+  NEUTRAL
+  DISLIKED
+}
+
+enum RecordingStatus {
+  UPLOADING
+  UPLOADED
+  TRANSCRIBING
+  TRANSCRIBED
+  ANALYZED
+  FAILED
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+// ==================== MODELS ====================
+
+model User {
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  passwordHash          String
+  name                  String
+  phone                 String?
+  role                  UserRole
+  timezone              String    @default("America/New_York")
+  hasCompletedOnboarding Boolean  @default(false)
+  avatarUrl             String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
+
+  // Relations - Buyer
+  houseBuyers           HouseBuyer[]
+  visits                Visit[]
+  recordings            Recording[]
+  dreamHouseProfile     DreamHouseProfile?
+  aiReports             AIReport[]
+  privacySettings       PrivacySettings?
+  buyerConnections      BuyerRealtor[]     @relation("BuyerConnection")
+
+  // Relations - Realtor
+  realtorConnections    BuyerRealtor[]     @relation("RealtorConnection")
+  housesAddedAsRealtor  HouseBuyer[]       @relation("AddedByRealtor")
+  invitesSent           Invite[]
+  toursCreated          Tour[]
+
+  @@index([email])
+  @@index([role])
+  @@index([deletedAt])
+}
+
+model House {
+  id              String    @id @default(cuid())
+  externalId      String?   @unique // ID from Realty API
+  address         String
+  city            String
+  state           String
+  zipCode         String
+  latitude        Float?
+  longitude       Float?
+  price           Int?
+  bedrooms        Int?
+  bathrooms       Float?
+  sqft            Int?
+  yearBuilt       Int?
+  propertyType    String?
+  listingStatus   String?
+  images          String[]  // Array of image URLs
+  description     String?
+  features        String[]
+  rawApiData      Json?     // Full API response for future reference
+  lastSyncedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  // Relations
+  houseBuyers     HouseBuyer[]
+  visits          Visit[]
+  tourStops       TourStop[]
+
+  @@index([externalId])
+  @@index([city, state])
+  @@index([deletedAt])
+}
+
+model HouseBuyer {
+  id              String    @id @default(cuid())
+  houseId         String
+  buyerId         String
+  addedByRealtorId String?
+  isFavorite      Boolean   @default(false)
+  matchScore      Float?    // 0-100 calculated by AI
+  notes           String?   // Buyer's personal notes
+  realtorNotes    String?   // Notes from Realtor (read-only for Buyer)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  // Relations
+  house           House     @relation(fields: [houseId], references: [id])
+  buyer           User      @relation(fields: [buyerId], references: [id])
+  addedByRealtor  User?     @relation("AddedByRealtor", fields: [addedByRealtorId], references: [id])
+
+  @@unique([houseId, buyerId])
+  @@index([buyerId])
+  @@index([houseId])
+  @@index([deletedAt])
+}
+
+model Visit {
+  id                String          @id @default(cuid())
+  houseId           String
+  buyerId           String
+  status            VisitStatus     @default(SCHEDULED)
+  scheduledAt       DateTime
+  startedAt         DateTime?
+  completedAt       DateTime?
+  overallImpression OverallImpression?
+  wouldBuy          Boolean?
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  deletedAt         DateTime?
+
+  // Relations
+  house             House           @relation(fields: [houseId], references: [id])
+  buyer             User            @relation(fields: [buyerId], references: [id])
+  recordings        Recording[]
+  tourStop          TourStop?
+
+  @@index([buyerId])
+  @@index([houseId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([deletedAt])
+}
+
+model Recording {
+  id                String          @id @default(cuid())
+  visitId           String
+  buyerId           String
+  roomId            String          // e.g., "living", "kitchen", "master"
+  roomName          String          // e.g., "Living Room", "Kitchen"
+  audioUrl          String?         // Path in Railway Volume
+  audioSize         Int?            // Size in bytes
+  audioDuration     Int?            // Duration in seconds
+  status            RecordingStatus @default(UPLOADING)
+  transcript        String?
+  detectedLanguage  String?         // e.g., "en", "es", "pt"
+  sentiment         String?         // AI-analyzed sentiment
+  keyPoints         String[]        // AI-extracted key points
+  photos            RecordingPhoto[]
+  errorMessage      String?         // If status is FAILED
+  retryCount        Int             @default(0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  deletedAt         DateTime?
+
+  // Relations
+  visit             Visit           @relation(fields: [visitId], references: [id])
+  buyer             User            @relation(fields: [buyerId], references: [id])
+
+  @@index([visitId])
+  @@index([buyerId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model RecordingPhoto {
+  id            String    @id @default(cuid())
+  recordingId   String
+  photoUrl      String    // Path in Railway Volume
+  photoSize     Int?      // Size in bytes
+  caption       String?
+  createdAt     DateTime  @default(now())
+
+  // Relations
+  recording     Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+
+  @@index([recordingId])
+}
+
+model Tour {
+  id              String      @id @default(cuid())
+  name            String
+  realtorId       String
+  buyerId         String?     // Optional: tour for specific buyer
+  status          TourStatus  @default(PLANNED)
+  scheduledDate   DateTime?
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?
+
+  // Relations
+  realtor         User        @relation(fields: [realtorId], references: [id])
+  stops           TourStop[]
+
+  @@index([realtorId])
+  @@index([buyerId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model TourStop {
+  id              String    @id @default(cuid())
+  tourId          String
+  houseId         String
+  visitId         String?   @unique
+  orderIndex      Int       // Order in the tour route
+  estimatedTime   DateTime? // Estimated arrival time
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  tour            Tour      @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  house           House     @relation(fields: [houseId], references: [id])
+  visit           Visit?    @relation(fields: [visitId], references: [id])
+
+  @@unique([tourId, houseId])
+  @@index([tourId])
+  @@index([orderIndex])
+}
+
+model BuyerRealtor {
+  id              String    @id @default(cuid())
+  buyerId         String
+  realtorId       String
+  invitedById     String    // ID of the Realtor who invited
+  connectedAt     DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  // Relations
+  buyer           User      @relation("BuyerConnection", fields: [buyerId], references: [id])
+  realtor         User      @relation("RealtorConnection", fields: [realtorId], references: [id])
+
+  @@unique([buyerId, realtorId])
+  @@index([buyerId])
+  @@index([realtorId])
+  @@index([deletedAt])
+}
+
+model Invite {
+  id              String        @id @default(cuid())
+  realtorId       String
+  email           String
+  name            String?
+  phone           String?
+  token           String        @unique @default(cuid())
+  status          InviteStatus  @default(PENDING)
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  rejectedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  realtor         User          @relation(fields: [realtorId], references: [id])
+
+  @@index([realtorId])
+  @@index([email])
+  @@index([token])
+  @@index([status])
+}
+
+model DreamHouseProfile {
+  id              String    @id @default(cuid())
+  buyerId         String    @unique
+  profile         Json?     // Structured preferences generated by AI
+  trainingChats   Json[]    // Array of chat messages for training
+  isComplete      Boolean   @default(false)
+  lastUpdatedAt   DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  buyer           User      @relation(fields: [buyerId], references: [id])
+
+  @@index([buyerId])
+}
+
+model AIReport {
+  id                  String        @id @default(cuid())
+  buyerId             String
+  status              ReportStatus  @default(PENDING)
+  language            String        @default("en") // Language of the report
+  content             Json?         // Full report content
+  ranking             Json?         // House ranking with scores
+  recommendedHouseId  String?       // Top recommended house
+  dealBreakers        Json?         // Identified deal breakers
+  insights            Json?         // Additional AI insights
+  housesAnalyzed      Int           @default(0)
+  recordingsAnalyzed  Int           @default(0)
+  generationStartedAt DateTime?
+  generationCompletedAt DateTime?
+  errorMessage        String?
+  retryCount          Int           @default(0)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  deletedAt           DateTime?
+
+  // Relations
+  buyer               User          @relation(fields: [buyerId], references: [id])
+
+  @@index([buyerId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model PrivacySettings {
+  id                      String    @id @default(cuid())
+  buyerId                 String    @unique
+  shareReportWithRealtor  Boolean   @default(false)
+  shareDreamHouseProfile  Boolean   @default(false)
+  shareRecordings         Boolean   @default(false)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  // Relations
+  buyer                   User      @relation(fields: [buyerId], references: [id])
+
+  @@index([buyerId])
+}
+
+model ApiLog {
+  id              String    @id @default(cuid())
+  service         String    // e.g., "realty_api", "anthropic", "resend"
+  endpoint        String
+  method          String
+  requestBody     Json?
+  responseStatus  Int?
+  responseBody    Json?
+  duration        Int?      // Duration in milliseconds
+  errorMessage    String?
+  userId          String?   // User who triggered the request
+  createdAt       DateTime  @default(now())
+
+  @@index([service])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+model Job {
+  id              String    @id @default(cuid())
+  type            String    // e.g., "transcribe", "analyze", "generate_report"
+  status          String    @default("pending") // pending, running, completed, failed
+  payload         Json
+  result          Json?
+  errorMessage    String?
+  retryCount      Int       @default(0)
+  maxRetries      Int       @default(3)
+  runAt           DateTime  @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([runAt])
 }

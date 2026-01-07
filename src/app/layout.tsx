@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Home Picker - Find Your Perfect Home",
-  description: "Record your impressions during house visits and compare homes to find your perfect match.",
+  title: "HomeTrace - Clarity for every step toward your home",
+  description: "HomeTrace helps home buyers capture their impressions during each visit and uses AI to turn them into clear, memorable comparisons—so choosing the right home feels easy.",
 };
 
 export default function RootLayout({
@@ -27,7 +28,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

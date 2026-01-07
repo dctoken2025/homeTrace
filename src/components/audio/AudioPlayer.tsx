@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { formatDuration } from '@/data/mock';
+import { formatDuration } from '@/lib/utils';
 
 interface AudioPlayerProps {
   audioUrl: string;
@@ -68,15 +68,16 @@ export default function AudioPlayer({ audioUrl, duration, compact = false }: Aud
       <div className="flex items-center gap-2">
         <button
           onClick={togglePlayback}
-          className="w-8 h-8 rounded-full bg-blue-100 hover:bg-blue-200 flex items-center justify-center transition-colors"
+          className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+          style={{ background: '#E3F2FD' }}
         >
           {isPlaying ? (
-            <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" style={{ color: '#006AFF' }} fill="currentColor" viewBox="0 0 24 24">
               <rect x="6" y="4" width="4" height="16" />
               <rect x="14" y="4" width="4" height="16" />
             </svg>
           ) : (
-            <svg className="w-4 h-4 text-blue-600 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 ml-0.5" style={{ color: '#006AFF' }} fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
             </svg>
           )}
@@ -94,7 +95,8 @@ export default function AudioPlayer({ audioUrl, duration, compact = false }: Aud
         {/* Play/Pause Button */}
         <button
           onClick={togglePlayback}
-          className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center transition-colors flex-shrink-0"
+          className="w-10 h-10 rounded-full flex items-center justify-center transition-colors flex-shrink-0"
+          style={{ background: '#006AFF' }}
         >
           {isPlaying ? (
             <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -116,9 +118,9 @@ export default function AudioPlayer({ audioUrl, duration, compact = false }: Aud
             max={duration}
             value={currentTime}
             onChange={handleSeek}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#006AFF]"
             style={{
-              background: `linear-gradient(to right, #2563eb ${progress}%, #e5e7eb ${progress}%)`,
+              background: `linear-gradient(to right, #006AFF ${progress}%, #e5e7eb ${progress}%)`,
             }}
           />
           <div className="flex justify-between mt-1">

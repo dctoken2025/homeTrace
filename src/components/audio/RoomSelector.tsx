@@ -31,7 +31,7 @@ export default function RoomSelector({
             onClick={() => onSelectRoom(room.id)}
             className={`relative p-3 rounded-xl transition-all ${
               isSelected
-                ? 'bg-blue-100 border-2 border-blue-500'
+                ? 'bg-[#E3F2FD] border-2 border-[#006AFF]'
                 : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
             }`}
           >
@@ -39,7 +39,7 @@ export default function RoomSelector({
             <p className="text-xs font-medium text-gray-700 truncate">{room.name}</p>
 
             {count > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 text-white text-xs rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#006AFF] text-white text-xs rounded-full flex items-center justify-center">
                 {count}
               </span>
             )}

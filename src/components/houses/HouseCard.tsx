@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import Card from '@/components/ui/Card';
 import { House, HouseVisit, IMPRESSION_EMOJIS } from '@/types';
-import { formatPrice } from '@/data/mock';
+import { formatPrice } from '@/lib/realty-api';
 
 interface HouseCardProps {
   house: House;
@@ -28,11 +28,11 @@ export default function HouseCard({ house, visit, linkPrefix, showAddedBy = fals
           />
           {showAddedBy && (
             <span
-              className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-medium ${
-                house.addedBy === 'realtor'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-green-100 text-green-700'
-              }`}
+              className="absolute top-2 left-2 px-2 py-1 rounded text-xs font-medium"
+              style={house.addedBy === 'realtor'
+                ? { background: '#E3F2FD', color: '#006AFF' }
+                : { background: '#dcfce7', color: '#16a34a' }
+              }
             >
               {house.addedBy === 'realtor' ? 'Realtor' : 'You'}
             </span>
