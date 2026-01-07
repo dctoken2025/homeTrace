@@ -93,8 +93,8 @@ async function transcribeWithWhisper(
 ): Promise<TranscriptionResult> {
   const formData = new FormData()
 
-  // Create a Blob from the buffer
-  const audioBlob = new Blob([audioBuffer], { type: 'audio/webm' })
+  // Create a Blob from the buffer (use Uint8Array for compatibility)
+  const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/webm' })
   formData.append('file', audioBlob, filename)
   formData.append('model', 'whisper-1')
   formData.append('response_format', 'verbose_json')

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { verifyAuth } from '@/lib/auth'
+import { getRequestUser } from '@/lib/auth'
 import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -9,12 +9,12 @@ export async function POST(
   { params }: { params: Promise<{ service: string }> }
 ) {
   try {
-    const authResult = await verifyAuth(request)
-    if (!authResult.success || !authResult.user) {
+    const user = await getRequestUser(request)
+    if (!user) {
       return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
     }
 
-    if (authResult.user.role !== 'ADMIN') {
+    if (user.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Admin access required')
     }
 

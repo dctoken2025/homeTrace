@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Card from '@/components/ui/Card'
-import { Button, LoadingSpinner } from '@/components/ui/Button'
+import Button, { LoadingSpinner } from '@/components/ui/Button'
 import { NetworkError } from '@/components/ui/ErrorState'
 import { toast } from '@/components/ui/Toast'
 
@@ -380,7 +380,7 @@ export default function AdminConfigPage() {
               </Button>
               <Button
                 onClick={saveConfig}
-                loading={saving}
+                isLoading={saving}
                 disabled={!formData.anthropicKey && !formData.resendKey && !formData.rapidApiKey}
               >
                 Save Changes
