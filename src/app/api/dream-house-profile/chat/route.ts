@@ -4,6 +4,7 @@ import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
 import { getRequestUser } from '@/lib/auth'
 import { generateDreamHouseResponse, getInitialGreeting, ChatMessage } from '@/lib/ai'
 import { z } from 'zod'
+import { checkRateLimit, getIdentifier } from '@/lib/rate-limit'
 
 // Schema for chat message
 const chatMessageSchema = z.object({
@@ -102,6 +103,18 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting for AI chat
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip')
+    const identifier = getIdentifier(ip)
+    const rateLimit = checkRateLimit(identifier, 'aiChat')
+    if (!rateLimit.success) {
+      return errorResponse(
+        ErrorCode.RATE_LIMIT_EXCEEDED,
+        'Too many chat requests. Please wait a moment.',
+        { retryAfter: Math.ceil((rateLimit.reset - Date.now()) / 1000) }
+      )
+    }
+
     const user = await getRequestUser(request)
     if (!user) {
       return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')

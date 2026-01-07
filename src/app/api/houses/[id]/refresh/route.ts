@@ -4,6 +4,7 @@ import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
 import { getRequestUser } from '@/lib/auth'
 import { realtyAPI, transformPropertyToHouse } from '@/lib/realty-api'
 import { Prisma } from '@prisma/client'
+import { checkRateLimit, getIdentifier } from '@/lib/rate-limit'
 
 interface RouteParams {
   params: Promise<{
@@ -17,6 +18,18 @@ interface RouteParams {
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    // Rate limiting for Realty API (external API with monthly quota)
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip')
+    const identifier = getIdentifier(ip)
+    const rateLimit = checkRateLimit(identifier, 'realtySearch')
+    if (!rateLimit.success) {
+      return errorResponse(
+        ErrorCode.RATE_LIMIT_EXCEEDED,
+        'Too many refresh requests. Please wait a moment.',
+        { retryAfter: Math.ceil((rateLimit.reset - Date.now()) / 1000) }
+      )
+    }
+
     const user = await getRequestUser(request)
     if (!user) {
       return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')

@@ -50,7 +50,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     })
 
-    if (!houseBuyer) {
+    if (!houseBuyer || houseBuyer.deletedAt) {
       return errorResponse(ErrorCode.NOT_FOUND, 'House not found')
     }
 

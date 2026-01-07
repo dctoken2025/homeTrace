@@ -3,6 +3,7 @@ import { realtyAPI, transformPropertyToHouse } from '@/lib/realty-api'
 import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
 import { getRequestUser } from '@/lib/auth'
 import { z } from 'zod'
+import { checkRateLimit, getIdentifier } from '@/lib/rate-limit'
 
 // Schema for search query
 const searchSchema = z.object({
@@ -34,6 +35,18 @@ const searchSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
+    // Rate limiting for Realty API (external API with monthly quota)
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip')
+    const identifier = getIdentifier(ip)
+    const rateLimit = checkRateLimit(identifier, 'realtySearch')
+    if (!rateLimit.success) {
+      return errorResponse(
+        ErrorCode.RATE_LIMIT_EXCEEDED,
+        'Too many search requests. Please wait a moment.',
+        { retryAfter: Math.ceil((rateLimit.reset - Date.now()) / 1000) }
+      )
+    }
+
     // Verify authentication
     const user = await getRequestUser(request)
     if (!user) {

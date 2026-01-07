@@ -59,7 +59,9 @@ export async function GET(request: NextRequest) {
     const filters = queryValidation.data
 
     // Build where clause based on role
-    const baseWhere: Prisma.HouseBuyerWhereInput = {}
+    const baseWhere: Prisma.HouseBuyerWhereInput = {
+      deletedAt: null, // Always filter soft-deleted records
+    }
 
     if (user.role === 'BUYER') {
       // Buyers see their own houses
@@ -67,7 +69,7 @@ export async function GET(request: NextRequest) {
     } else if (user.role === 'REALTOR') {
       // Realtors see houses of their connected buyers
       const connectedBuyers = await prisma.buyerRealtor.findMany({
-        where: { realtorId: user.userId },
+        where: { realtorId: user.userId, deletedAt: null },
         select: { buyerId: true },
       })
       baseWhere.buyerId = { in: connectedBuyers.map((c) => c.buyerId) }

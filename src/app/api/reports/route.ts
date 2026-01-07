@@ -6,6 +6,7 @@ import { generateReport, HouseData, VisitData, RecordingData, ReportContent } fr
 import { DreamHousePreferences } from '@/lib/ai'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
+import { checkRateLimit, getIdentifier } from '@/lib/rate-limit'
 
 // Schema for creating a report
 const createReportSchema = z.object({
@@ -96,6 +97,18 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting for AI report generation (expensive operation)
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip')
+    const identifier = getIdentifier(ip)
+    const rateLimit = checkRateLimit(identifier, 'aiReport')
+    if (!rateLimit.success) {
+      return errorResponse(
+        ErrorCode.RATE_LIMIT_EXCEEDED,
+        'Too many report generation requests. Please wait before generating another report.',
+        { retryAfter: Math.ceil((rateLimit.reset - Date.now()) / 1000) }
+      )
+    }
+
     const user = await getRequestUser(request)
     if (!user) {
       return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')

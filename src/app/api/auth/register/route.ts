@@ -6,9 +6,22 @@ import { sendWelcomeEmail } from '@/lib/email'
 import { registerSchema, validateRequest, formatZodErrors } from '@/lib/validations'
 import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
 import { UserRole } from '@prisma/client'
+import { checkRateLimit, getIdentifier } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip')
+    const identifier = getIdentifier(ip)
+    const rateLimit = checkRateLimit(identifier, 'register')
+    if (!rateLimit.success) {
+      return errorResponse(
+        ErrorCode.RATE_LIMIT_EXCEEDED,
+        'Too many registration attempts. Please try again later.',
+        { retryAfter: Math.ceil((rateLimit.reset - Date.now()) / 1000) }
+      )
+    }
+
     const body = await request.json()
 
     // Validate request body

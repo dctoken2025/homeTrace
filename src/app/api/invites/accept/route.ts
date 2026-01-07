@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    if (!invite) {
+    if (!invite || invite.deletedAt) {
       return errorResponse(ErrorCode.NOT_FOUND, 'Invite not found or invalid token')
     }
 
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    if (!invite) {
+    if (!invite || invite.deletedAt) {
       return errorResponse(ErrorCode.NOT_FOUND, 'Invite not found or invalid token')
     }
 

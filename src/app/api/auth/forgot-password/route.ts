@@ -4,9 +4,22 @@ import { generatePasswordResetToken } from '@/lib/jwt'
 import { sendPasswordResetEmail } from '@/lib/email'
 import { forgotPasswordSchema, validateRequest, formatZodErrors } from '@/lib/validations'
 import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
+import { checkRateLimit, getIdentifier } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting - stricter for password reset
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip')
+    const identifier = getIdentifier(ip)
+    const rateLimit = checkRateLimit(identifier, 'forgotPassword')
+    if (!rateLimit.success) {
+      return errorResponse(
+        ErrorCode.RATE_LIMIT_EXCEEDED,
+        'Too many password reset requests. Please try again later.',
+        { retryAfter: Math.ceil((rateLimit.reset - Date.now()) / 1000) }
+      )
+    }
+
     const body = await request.json()
 
     // Validate request body
