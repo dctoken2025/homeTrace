@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { analyzeRecordingTranscript } from '@/lib/ai-match'
 import { transcribeAudio, detectLanguage } from '@/lib/transcription'
 
@@ -17,9 +17,9 @@ interface RouteParams {
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check ownership
-    if (recording.buyerId !== user.userId && user.role !== 'ADMIN') {
+    if (recording.buyerId !== session.userId && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Access denied')
     }
 
@@ -167,9 +167,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -194,7 +194,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check ownership
-    if (recording.buyerId !== user.userId && user.role !== 'ADMIN') {
+    if (recording.buyerId !== session.userId && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Access denied')
     }
 

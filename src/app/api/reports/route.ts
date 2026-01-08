@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode, paginatedResponse } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, paginatedResponse, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { generateReport, HouseData, VisitData, RecordingData, ReportContent } from '@/lib/ai-reports'
 import { DreamHousePreferences } from '@/lib/ai'
 import { z } from 'zod'
@@ -26,13 +26,13 @@ const querySchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can view their reports
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can view reports')
     }
 
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     const where: any = {
-      buyerId: user.userId,
+      buyerId: session.userId,
       deletedAt: null,
     }
 
@@ -109,13 +109,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can generate reports
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can generate reports')
     }
 
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
     // Check if there's already a report being generated
     const existingPending = await prisma.aIReport.findFirst({
       where: {
-        buyerId: user.userId,
+        buyerId: session.userId,
         status: { in: ['PENDING', 'GENERATING'] },
         deletedAt: null,
       },
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
     // Get buyer's houses
     const houseBuyers = await prisma.houseBuyer.findMany({
       where: {
-        buyerId: user.userId,
+        buyerId: session.userId,
         deletedAt: null,
       },
       include: {
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
     // Get visits with recordings
     const visits = await prisma.visit.findMany({
       where: {
-        buyerId: user.userId,
+        buyerId: session.userId,
         deletedAt: null,
       },
       include: {
@@ -182,13 +182,13 @@ export async function POST(request: NextRequest) {
 
     // Get dream house profile
     const dreamProfile = await prisma.dreamHouseProfile.findUnique({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
     })
 
     // Create report record
     const report = await prisma.aIReport.create({
       data: {
-        buyerId: user.userId,
+        buyerId: session.userId,
         status: 'GENERATING',
         language,
         housesAnalyzed: houseBuyers.length,
@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
     // Generate report (async - update record when done)
     try {
       const content = await generateReport({
-        buyerId: user.userId,
+        buyerId: session.userId,
         houses,
         visits: visitData,
         dreamHouseProfile,

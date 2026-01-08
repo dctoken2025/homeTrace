@@ -59,16 +59,8 @@ export default function AdminUsersPage() {
       if (role) params.append('role', role)
       if (includeDeleted) params.append('includeDeleted', 'true')
 
-      const token = localStorage.getItem('auth_token')
-
-      if (!token) {
-        throw new Error('Not authenticated')
-      }
-
       const response = await fetch(`/api/admin/users?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       })
       const data = await response.json()
 

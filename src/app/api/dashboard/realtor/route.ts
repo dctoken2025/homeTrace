@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { addDays } from 'date-fns'
 
 /**
@@ -10,16 +10,16 @@ import { addDays } from 'date-fns'
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
-    if (user.role !== 'REALTOR') {
+    if (session.role !== 'REALTOR') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Access denied')
     }
 
-    const realtorId = user.userId
+    const realtorId = session.userId
 
     // Get user info first
     const userInfo = await prisma.user.findUnique({

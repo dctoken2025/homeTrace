@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { generateDreamHouseResponse, getInitialGreeting, ChatMessage } from '@/lib/ai'
 import { z } from 'zod'
 import { checkRateLimit, getIdentifier } from '@/lib/rate-limit'
@@ -17,19 +17,19 @@ const chatMessageSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can chat
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can use dream house chat')
     }
 
     // Get or create profile
     let profile = await prisma.dreamHouseProfile.findUnique({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
     })
 
     if (!profile) {
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
       profile = await prisma.dreamHouseProfile.create({
         data: {
-          buyerId: user.userId,
+          buyerId: session.userId,
           trainingChats: [initialChat],
         },
       })
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
       }
 
       await prisma.dreamHouseProfile.update({
-        where: { buyerId: user.userId },
+        where: { buyerId: session.userId },
         data: {
           trainingChats: [...chats, newChat],
         },
@@ -115,13 +115,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can chat
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can use dream house chat')
     }
 
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
 
     // Get profile
     let profile = await prisma.dreamHouseProfile.findUnique({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
     })
 
     if (!profile) {
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       const initialGreeting = getInitialGreeting()
       profile = await prisma.dreamHouseProfile.create({
         data: {
-          buyerId: user.userId,
+          buyerId: session.userId,
           trainingChats: [{
             id: Date.now().toString(),
             startedAt: new Date().toISOString(),
@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
     // Update profile with new chat
     const updatedChats = [...chats.slice(0, -1), currentChat]
     await prisma.dreamHouseProfile.update({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
       data: {
         trainingChats: updatedChats,
         lastUpdatedAt: new Date(),
@@ -220,18 +220,18 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can manage chat
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can manage dream house chat')
     }
 
     const profile = await prisma.dreamHouseProfile.findUnique({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
     })
 
     if (!profile) {
@@ -250,7 +250,7 @@ export async function DELETE(request: NextRequest) {
 
     const chats = profile.trainingChats as any[]
     await prisma.dreamHouseProfile.update({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
       data: {
         trainingChats: [...chats, newChat],
         lastUpdatedAt: new Date(),

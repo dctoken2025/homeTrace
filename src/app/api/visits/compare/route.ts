@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 
 /**
  * GET /api/visits/compare
@@ -9,9 +9,9 @@ import { getRequestUser } from '@/lib/auth'
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Get IDs of houses to compare from query params
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     const where: any = {
-      buyerId: user.userId,
+      buyerId: session.userId,
       deletedAt: null,
       status: { in: ['COMPLETED', 'IN_PROGRESS'] },
     }
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     // Get all houses the buyer has that have visits
     const houseBuyers = await prisma.houseBuyer.findMany({
       where: {
-        buyerId: user.userId,
+        buyerId: session.userId,
         deletedAt: null,
         houseId: { in: Array.from(visitedHouseIds) },
       },

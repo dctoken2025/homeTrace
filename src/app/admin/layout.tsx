@@ -1,53 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-
-interface User {
-  id: string
-  email: string
-  name: string
-  role: string
-}
+import { useRequireAuth } from '@/hooks/useAuth'
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem('user')
-    const token = localStorage.getItem('auth_token')
-
-    if (!storedUser || !token) {
-      // Clear the cookie to prevent redirect loop with middleware
-      document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-      router.push('/sign-in')
-      return
-    }
-
-    const userData = JSON.parse(storedUser) as User
-    if (userData.role !== 'ADMIN') {
-      router.push('/client')
-      return
-    }
-
-    setUser(userData)
-    setIsLoading(false)
-  }, [router])
-
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user')
-    // Clear the cookie to prevent redirect loop with middleware
-    document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    router.push('/sign-in')
-  }
+  const { user, isLoading, logout } = useRequireAuth('ADMIN')
 
   if (isLoading) {
     return (
@@ -87,6 +48,9 @@ export default function AdminLayout({
               <Link href="/admin/houses" className="text-sm font-medium text-gray-600 hover:text-gray-900">
                 Houses
               </Link>
+              <Link href="/admin/config" className="text-sm font-medium text-gray-600 hover:text-gray-900">
+                Integrations
+              </Link>
               <Link href="/admin/logs" className="text-sm font-medium text-gray-600 hover:text-gray-900">
                 Logs
               </Link>
@@ -98,7 +62,7 @@ export default function AdminLayout({
                 <p className="text-xs text-gray-500">{user?.email}</p>
               </div>
               <button
-                onClick={handleLogout}
+                onClick={logout}
                 className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 Logout

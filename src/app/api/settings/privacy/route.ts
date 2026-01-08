@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 
 // Schema for updating privacy settings
@@ -17,24 +17,24 @@ const updatePrivacySchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers have privacy settings
-    if (user.role !== 'BUYER') {
+    if (session.role !== 'BUYER') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Privacy settings are only available for buyers')
     }
 
     let privacySettings = await prisma.privacySettings.findUnique({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
     })
 
     // Create default privacy settings if not exists
     if (!privacySettings) {
       privacySettings = await prisma.privacySettings.create({
-        data: { buyerId: user.userId },
+        data: { buyerId: session.userId },
       })
     }
 
@@ -55,13 +55,13 @@ export async function GET(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers have privacy settings
-    if (user.role !== 'BUYER') {
+    if (session.role !== 'BUYER') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Privacy settings are only available for buyers')
     }
 
@@ -80,9 +80,9 @@ export async function PATCH(request: NextRequest) {
 
     // Upsert privacy settings
     const privacySettings = await prisma.privacySettings.upsert({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
       create: {
-        buyerId: user.userId,
+        buyerId: session.userId,
         shareReportWithRealtor: shareReportWithRealtor ?? false,
         shareDreamHouseProfile: shareDreamHouseProfile ?? false,
         shareRecordings: shareRecordings ?? false,

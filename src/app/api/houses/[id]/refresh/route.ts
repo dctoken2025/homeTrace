@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { realtyAPI, transformPropertyToHouse } from '@/lib/realty-api'
 import { Prisma } from '@prisma/client'
 import { checkRateLimit, getIdentifier } from '@/lib/rate-limit'
@@ -30,9 +30,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -54,14 +54,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Check access permissions
     const hasAccess =
-      user.role === 'ADMIN' ||
-      houseBuyer.buyerId === user.userId ||
-      houseBuyer.addedByRealtorId === user.userId
+      session.role === 'ADMIN' ||
+      houseBuyer.buyerId === session.userId ||
+      houseBuyer.addedByRealtorId === session.userId
 
-    if (!hasAccess && user.role === 'REALTOR') {
+    if (!hasAccess && session.role === 'REALTOR') {
       const connection = await prisma.buyerRealtor.findFirst({
         where: {
-          realtorId: user.userId,
+          realtorId: session.userId,
           buyerId: houseBuyer.buyerId,
         },
       })

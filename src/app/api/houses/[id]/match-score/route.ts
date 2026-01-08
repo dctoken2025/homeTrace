@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { calculateMatchScore, HouseData } from '@/lib/ai-match'
 import { DreamHousePreferences } from '@/lib/ai'
 
@@ -17,13 +17,13 @@ interface RouteParams {
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can calculate match scores
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can calculate match scores')
     }
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Get buyer's dream house profile
     const profile = await prisma.dreamHouseProfile.findUnique({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
     })
 
     if (!profile || !profile.profile) {
@@ -76,12 +76,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       where: {
         houseId_buyerId: {
           houseId,
-          buyerId: user.userId,
+          buyerId: session.userId,
         },
       },
       create: {
         houseId,
-        buyerId: user.userId,
+        buyerId: session.userId,
         matchScore: matchResult.score,
       },
       update: {
@@ -105,9 +105,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id: houseId } = await params
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       where: {
         houseId_buyerId: {
           houseId,
-          buyerId: user.userId,
+          buyerId: session.userId,
         },
       },
       select: {

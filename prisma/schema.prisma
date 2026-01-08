@@ -92,6 +92,9 @@ model User {
   invitesSent           Invite[]
   toursCreated          Tour[]
 
+  // Relations - Sessions
+  sessions              Session[]
+
   @@index([email])
   @@index([role])
   @@index([deletedAt])
@@ -416,4 +419,29 @@ model Job {
   @@index([type])
   @@index([status])
   @@index([runAt])
+}
+
+// ==================== SESSION MANAGEMENT ====================
+
+model Session {
+  id              String    @id @default(cuid())
+  userId          String
+  refreshToken    String    @unique
+  userAgent       String?   // Browser/device info
+  ipAddress       String?
+  lastActiveAt    DateTime  @default(now())
+  expiresAt       DateTime
+  isRevoked       Boolean   @default(false)
+  revokedAt       DateTime?
+  revokedReason   String?   // "logout", "password_change", "admin_revoke", "expired"
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshToken])
+  @@index([expiresAt])
+  @@index([isRevoked])
 }

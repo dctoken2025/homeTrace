@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 
 interface RouteParams {
@@ -34,9 +34,9 @@ const reorderStopsSchema = z.object({
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id: tourId } = await params
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Only the realtor who created it can add stops
-    if (user.role !== 'ADMIN' && tour.realtorId !== user.userId) {
+    if (session.role !== 'ADMIN' && tour.realtorId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the tour creator can add stops')
     }
 
@@ -156,9 +156,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
  */
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id: tourId } = await params
@@ -172,7 +172,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // Only the realtor who created it can reorder
-    if (user.role !== 'ADMIN' && tour.realtorId !== user.userId) {
+    if (session.role !== 'ADMIN' && tour.realtorId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the tour creator can reorder stops')
     }
 
@@ -242,9 +242,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id: tourId } = await params
@@ -263,7 +263,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Only the realtor who created it can remove stops
-    if (user.role !== 'ADMIN' && tour.realtorId !== user.userId) {
+    if (session.role !== 'ADMIN' && tour.realtorId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the tour creator can remove stops')
     }
 

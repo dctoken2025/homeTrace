@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
-import { getRequestUser } from '@/lib/auth'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
 import Anthropic from '@anthropic-ai/sdk'
 
 // POST /api/admin/config/test/[service] - Test API connection
@@ -9,12 +9,12 @@ export async function POST(
   { params }: { params: Promise<{ service: string }> }
 ) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
-    if (user.role !== 'ADMIN') {
+    if (session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Admin access required')
     }
 

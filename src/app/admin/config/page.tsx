@@ -62,15 +62,8 @@ export default function AdminConfigPage() {
       setLoading(true)
       setError(null)
 
-      const token = localStorage.getItem('auth_token')
-      if (!token) {
-        throw new Error('Not authenticated')
-      }
-
       const response = await fetch('/api/admin/config', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       })
       const data = await response.json()
 
@@ -95,12 +88,9 @@ export default function AdminConfigPage() {
     setTestResults((prev) => ({ ...prev, [service]: 'testing' }))
 
     try {
-      const token = localStorage.getItem('auth_token')
       const response = await fetch(`/api/admin/config/test/${service}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       })
       const data = await response.json()
 
@@ -121,11 +111,10 @@ export default function AdminConfigPage() {
     setSaving(true)
 
     try {
-      const token = localStorage.getItem('auth_token')
       const response = await fetch('/api/admin/config', {
         method: 'PUT',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -234,7 +223,7 @@ export default function AdminConfigPage() {
             </p>
             {config.realtyApi.monthlyUsage > config.realtyApi.monthlyLimit * 0.8 && (
               <p className="text-xs text-amber-600 mt-1">
-                ⚠️ Approaching monthly limit
+                Approaching monthly limit
               </p>
             )}
           </Card>

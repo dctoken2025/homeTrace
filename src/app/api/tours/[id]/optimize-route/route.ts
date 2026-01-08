@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { optimizeRoute, optimizeRouteFromStart, calculateImprovement, Location } from '@/lib/route-optimizer'
 import { z } from 'zod'
 
@@ -26,9 +26,9 @@ const optimizeSchema = z.object({
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id: tourId } = await params
@@ -62,9 +62,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Check access
     if (
-      user.role !== 'ADMIN' &&
-      tour.realtorId !== user.userId &&
-      tour.buyerId !== user.userId
+      session.role !== 'ADMIN' &&
+      tour.realtorId !== session.userId &&
+      tour.buyerId !== session.userId
     ) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Access denied')
     }
@@ -121,9 +121,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const improvement = calculateImprovement(originalLocations, optimizedResult.orderedLocations)
 
     // If requested, apply the optimization to the tour
-    if (applyOptimization && user.role !== 'BUYER') {
+    if (applyOptimization && session.role !== 'BUYER') {
       // Only realtor or admin can apply changes
-      if (tour.realtorId !== user.userId && user.role !== 'ADMIN') {
+      if (tour.realtorId !== session.userId && session.role !== 'ADMIN') {
         return errorResponse(
           ErrorCode.FORBIDDEN,
           'Only the tour creator can apply route optimization'
@@ -192,8 +192,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
       optimizedRoute: optimizedStops,
       excluded: housesWithoutCoords,
-      applied: applyOptimization && user.role !== 'BUYER',
-      message: applyOptimization && user.role !== 'BUYER'
+      applied: applyOptimization && session.role !== 'BUYER',
+      message: applyOptimization && session.role !== 'BUYER'
         ? 'Route optimization applied successfully'
         : 'Route optimization calculated. Set applyOptimization to true to save changes.',
     })
@@ -209,9 +209,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id: tourId } = await params
@@ -245,9 +245,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Check access
     if (
-      user.role !== 'ADMIN' &&
-      tour.realtorId !== user.userId &&
-      tour.buyerId !== user.userId
+      session.role !== 'ADMIN' &&
+      tour.realtorId !== session.userId &&
+      tour.buyerId !== session.userId
     ) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Access denied')
     }

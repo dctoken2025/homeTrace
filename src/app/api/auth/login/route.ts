@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
-import { generateToken } from '@/lib/jwt'
 import { loginSchema, validateRequest, formatZodErrors } from '@/lib/validations'
 import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
 import { checkRateLimit, getIdentifier, getRateLimitHeaders } from '@/lib/rate-limit'
+import { createSession, setAuthCookies } from '@/lib/auth-session'
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +18,6 @@ export async function POST(request: NextRequest) {
         ErrorCode.RATE_LIMIT_EXCEEDED,
         'Too many login attempts. Please try again later.'
       )
-      // Add rate limit headers
       const headers = getRateLimitHeaders(rateLimit)
       Object.entries(headers).forEach(([key, value]) => {
         response.headers.set(key, value)
@@ -53,10 +52,11 @@ export async function POST(request: NextRequest) {
         hasCompletedOnboarding: true,
         avatarUrl: true,
         createdAt: true,
+        deletedAt: true,
       },
     })
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       return errorResponse(
         ErrorCode.UNAUTHORIZED,
         'Invalid email or password'
@@ -72,20 +72,35 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate JWT token
-    const token = await generateToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
+    // Get user agent and IP for session tracking
+    const userAgent = request.headers.get('user-agent') || undefined
+    const ipAddress = ip || undefined
+
+    // Create session with tokens
+    const { accessToken, refreshToken, sessionId } = await createSession(
+      user.id,
+      user.email,
+      user.role,
+      userAgent,
+      ipAddress
+    )
+
+    // Remove sensitive data from response
+    const { passwordHash: _, deletedAt: __, ...userWithoutSensitive } = user
+
+    // Create response with user data
+    const response = NextResponse.json({
+      success: true,
+      data: {
+        user: userWithoutSensitive,
+        sessionId,
+      },
     })
 
-    // Remove passwordHash from response
-    const { passwordHash: _, ...userWithoutPassword } = user
+    // Set httpOnly cookies
+    setAuthCookies(response, accessToken, refreshToken)
 
-    return successResponse({
-      user: userWithoutPassword,
-      token,
-    })
+    return response
   } catch (error) {
     console.error('Login error:', error)
     return errorResponse(

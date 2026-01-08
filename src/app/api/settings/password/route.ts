@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 
@@ -21,9 +21,9 @@ const changePasswordSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const body = await request.json()
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     // Get current user with password hash
     const userData = await prisma.user.findUnique({
-      where: { id: user.userId },
+      where: { id: session.userId },
       select: {
         id: true,
         passwordHash: true,
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     // Update password
     await prisma.user.update({
-      where: { id: user.userId },
+      where: { id: session.userId },
       data: { passwordHash: newPasswordHash },
     })
 

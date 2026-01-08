@@ -6,8 +6,9 @@ import {
   paginatedResponse,
   ErrorCode,
   parsePaginationParams,
+  Errors,
 } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 import { Prisma, VisitStatus } from '@prisma/client'
 
@@ -32,9 +33,9 @@ const querySchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { page, limit, skip } = parsePaginationParams(request.nextUrl.searchParams)
@@ -56,12 +57,12 @@ export async function GET(request: NextRequest) {
       deletedAt: null,
     }
 
-    if (user.role === 'BUYER') {
-      where.buyerId = user.userId
-    } else if (user.role === 'REALTOR') {
+    if (session.role === 'BUYER') {
+      where.buyerId = session.userId
+    } else if (session.role === 'REALTOR') {
       // Realtors see visits of their connected buyers
       const connectedBuyers = await prisma.buyerRealtor.findMany({
-        where: { realtorId: user.userId },
+        where: { realtorId: session.userId },
         select: { buyerId: true },
       })
       where.buyerId = { in: connectedBuyers.map((c) => c.buyerId) }
@@ -151,13 +152,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can create visits
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can create visits')
     }
 
@@ -188,7 +189,7 @@ export async function POST(request: NextRequest) {
     const houseBuyer = await prisma.houseBuyer.findFirst({
       where: {
         houseId,
-        buyerId: user.userId,
+        buyerId: session.userId,
         deletedAt: null,
       },
       include: {
@@ -207,7 +208,7 @@ export async function POST(request: NextRequest) {
     const visit = await prisma.visit.create({
       data: {
         houseId,
-        buyerId: user.userId,
+        buyerId: session.userId,
         scheduledAt: scheduledDate,
         notes,
       },

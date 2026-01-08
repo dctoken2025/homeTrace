@@ -53,16 +53,8 @@ export default function AdminLogsPage() {
       if (service) params.append('service', service)
       if (status) params.append('status', status)
 
-      const token = localStorage.getItem('auth_token')
-
-      if (!token) {
-        throw new Error('Not authenticated')
-      }
-
       const response = await fetch(`/api/admin/logs?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       })
       const data = await response.json()
 

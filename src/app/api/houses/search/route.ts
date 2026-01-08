@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { realtyAPI, transformPropertyToHouse } from '@/lib/realty-api'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 import { checkRateLimit, getIdentifier } from '@/lib/rate-limit'
 
@@ -48,9 +48,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify authentication
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Parse and validate query params

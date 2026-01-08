@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { deleteFile } from '@/lib/storage'
 import { z } from 'zod'
 
@@ -26,9 +26,9 @@ const updateRecordingSchema = z.object({
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -71,14 +71,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check access
-    if (user.role === 'BUYER' && recording.buyerId !== user.userId) {
+    if (session.role === 'BUYER' && recording.buyerId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Access denied')
     }
 
-    if (user.role === 'REALTOR') {
+    if (session.role === 'REALTOR') {
       const connection = await prisma.buyerRealtor.findFirst({
         where: {
-          realtorId: user.userId,
+          realtorId: session.userId,
           buyerId: recording.buyerId,
           deletedAt: null,
         },
@@ -119,9 +119,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  */
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -151,7 +151,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     // Only the buyer who owns the recording or admin can update it
-    if (user.role !== 'ADMIN' && recording.buyerId !== user.userId) {
+    if (session.role !== 'ADMIN' && recording.buyerId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the recording owner can update it')
     }
 
@@ -189,9 +189,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -208,7 +208,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Only the buyer who owns the recording or admin can delete it
-    if (user.role !== 'ADMIN' && recording.buyerId !== user.userId) {
+    if (session.role !== 'ADMIN' && recording.buyerId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the recording owner can delete it')
     }
 

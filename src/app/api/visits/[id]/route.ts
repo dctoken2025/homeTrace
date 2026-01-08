@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 
 interface RouteParams {
@@ -98,14 +98,14 @@ async function checkVisitAccess(
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
 
-    const { hasAccess, visit } = await checkVisitAccess(id, user.userId, user.role)
+    const { hasAccess, visit } = await checkVisitAccess(id, session.userId, session.role)
 
     if (!visit) {
       return errorResponse(ErrorCode.VISIT_NOT_FOUND, 'Visit not found')
@@ -143,9 +143,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  */
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -172,7 +172,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     // Only the buyer who owns the visit can update it
-    if (user.role !== 'ADMIN' && visit.buyerId !== user.userId) {
+    if (session.role !== 'ADMIN' && visit.buyerId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the visit owner can update it')
     }
 
@@ -244,9 +244,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -268,7 +268,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Only the buyer who owns the visit or admin can delete it
-    if (user.role !== 'ADMIN' && visit.buyerId !== user.userId) {
+    if (session.role !== 'ADMIN' && visit.buyerId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the visit owner can delete it')
     }
 

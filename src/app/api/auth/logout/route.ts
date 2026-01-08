@@ -1,29 +1,52 @@
-import { NextRequest } from 'next/server'
-import { getAuthUser } from '@/lib/jwt'
-import { successResponse, Errors } from '@/lib/api-response'
+import { NextRequest, NextResponse } from 'next/server'
+import { getSessionUser, revokeSession, clearAuthCookies } from '@/lib/auth-session'
+import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
 
 /**
- * Logout endpoint
- *
- * For stateless JWT, the actual logout happens client-side by removing the token.
- * This endpoint:
- * - Validates the current token is still valid
- * - Could be extended for token blacklisting in the future
- * - Provides a consistent API response
+ * POST /api/auth/logout
+ * Logout endpoint - revokes the current session in the database
+ * and clears auth cookies
  */
 export async function POST(request: NextRequest) {
-  // Verify the token is valid before "logging out"
-  const authHeader = request.headers.get('authorization')
-  const authUser = await getAuthUser(authHeader)
+  try {
+    // Get session from cookies or Authorization header
+    const session = await getSessionUser(request)
 
-  if (!authUser) {
-    return Errors.unauthorized()
+    if (!session) {
+      // Even if no valid session, clear cookies
+      const response = successResponse({
+        message: 'Logged out successfully',
+      })
+      clearAuthCookies(response as NextResponse)
+      return response
+    }
+
+    // Revoke session in database
+    if (session.sessionId) {
+      await revokeSession(session.sessionId, 'logout')
+    }
+
+    // Create response and clear cookies
+    const response = NextResponse.json({
+      success: true,
+      data: {
+        message: 'Logged out successfully',
+      },
+    })
+
+    clearAuthCookies(response)
+
+    return response
+  } catch (error) {
+    console.error('Logout error:', error)
+    // Even on error, try to clear cookies
+    const response = NextResponse.json({
+      success: true,
+      data: {
+        message: 'Logged out successfully',
+      },
+    })
+    clearAuthCookies(response)
+    return response
   }
-
-  // In the future, we could add token to a blacklist here
-  // For now, just acknowledge the logout
-
-  return successResponse({
-    message: 'Logged out successfully',
-  })
 }

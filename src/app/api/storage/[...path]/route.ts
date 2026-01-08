@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getFile, getContentType } from '@/lib/storage'
-import { getRequestUser } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 
 interface RouteParams {
@@ -16,8 +16,8 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
+    const session = await getSessionUser(request)
+    if (!session) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
@@ -48,14 +48,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
 
       // Check access
-      if (user.role === 'BUYER' && visit.buyerId !== user.userId) {
+      if (session.role === 'BUYER' && visit.buyerId !== session.userId) {
         return new NextResponse('Forbidden', { status: 403 })
       }
 
-      if (user.role === 'REALTOR') {
+      if (session.role === 'REALTOR') {
         const connection = await prisma.buyerRealtor.findFirst({
           where: {
-            realtorId: user.userId,
+            realtorId: session.userId,
             buyerId: visit.buyerId,
             deletedAt: null,
           },
@@ -76,14 +76,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
 
       // Check access
-      if (user.role === 'BUYER' && recording.buyerId !== user.userId) {
+      if (session.role === 'BUYER' && recording.buyerId !== session.userId) {
         return new NextResponse('Forbidden', { status: 403 })
       }
 
-      if (user.role === 'REALTOR') {
+      if (session.role === 'REALTOR') {
         const connection = await prisma.buyerRealtor.findFirst({
           where: {
-            realtorId: user.userId,
+            realtorId: session.userId,
             buyerId: recording.buyerId,
             deletedAt: null,
           },

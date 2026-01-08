@@ -1,21 +1,23 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthUser } from '@/lib/jwt'
+import { getSessionUser } from '@/lib/auth-session'
 import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
 
 export async function GET(request: NextRequest) {
   try {
-    // Get authenticated user from token
-    const authHeader = request.headers.get('authorization')
-    const authUser = await getAuthUser(authHeader)
+    // Get authenticated user from session
+    const session = await getSessionUser(request)
 
-    if (!authUser) {
+    if (!session) {
       return Errors.unauthorized()
     }
 
     // Fetch full user data
-    const user = await prisma.user.findUnique({
-      where: { id: authUser.userId },
+    const user = await prisma.user.findFirst({
+      where: {
+        id: session.userId,
+        deletedAt: null,
+      },
       select: {
         id: true,
         email: true,
@@ -51,7 +53,10 @@ export async function GET(request: NextRequest) {
       return Errors.notFound('User')
     }
 
-    return successResponse({ user })
+    return successResponse({
+      user,
+      sessionId: session.sessionId,
+    })
   } catch (error) {
     console.error('Get user error:', error)
     return errorResponse(
@@ -63,11 +68,10 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    // Get authenticated user from token
-    const authHeader = request.headers.get('authorization')
-    const authUser = await getAuthUser(authHeader)
+    // Get authenticated user from session
+    const session = await getSessionUser(request)
 
-    if (!authUser) {
+    if (!session) {
       return Errors.unauthorized()
     }
 
@@ -92,7 +96,7 @@ export async function PATCH(request: NextRequest) {
 
     // Update user
     const user = await prisma.user.update({
-      where: { id: authUser.userId },
+      where: { id: session.userId },
       data: updateData,
       select: {
         id: true,

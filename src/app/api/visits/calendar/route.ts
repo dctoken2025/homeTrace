@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 
 // Schema for query params
@@ -17,9 +17,9 @@ const querySchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const searchParams = Object.fromEntries(request.nextUrl.searchParams.entries())
@@ -46,12 +46,12 @@ export async function GET(request: NextRequest) {
       },
     }
 
-    if (user.role === 'BUYER') {
-      where.buyerId = user.userId
-    } else if (user.role === 'REALTOR') {
+    if (session.role === 'BUYER') {
+      where.buyerId = session.userId
+    } else if (session.role === 'REALTOR') {
       // Get connected buyers
       const connectedBuyers = await prisma.buyerRealtor.findMany({
-        where: { realtorId: user.userId },
+        where: { realtorId: session.userId },
         select: { buyerId: true },
       })
       const buyerIds = connectedBuyers.map((c) => c.buyerId)

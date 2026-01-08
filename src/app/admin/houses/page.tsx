@@ -56,20 +56,15 @@ export default function AdminHousesPage() {
       if (search) params.append('search', search)
       if (city) params.append('city', city)
 
-      const token = localStorage.getItem('auth_token')
       const response = await fetch(`/api/admin/houses?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       })
 
       // If admin houses endpoint doesn't exist yet, use regular houses endpoint
       if (response.status === 404) {
         // Fallback to basic implementation
         const housesResponse = await fetch('/api/houses?limit=20', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          credentials: 'include',
         })
         const data = await housesResponse.json()
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 
 interface RouteParams {
   params: Promise<{
@@ -15,9 +15,9 @@ interface RouteParams {
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Only the buyer who owns the visit can start it
-    if (user.role !== 'ADMIN' && visit.buyerId !== user.userId) {
+    if (session.role !== 'ADMIN' && visit.buyerId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the visit owner can start it')
     }
 

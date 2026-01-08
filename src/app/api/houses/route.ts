@@ -5,10 +5,11 @@ import {
   errorResponse,
   paginatedResponse,
   ErrorCode,
+  Errors,
   parsePaginationParams,
   parseSortParams,
 } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-session'
 import { realtyAPI, transformPropertyToHouse } from '@/lib/realty-api'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
@@ -39,9 +40,9 @@ const querySchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { page, limit, skip } = parsePaginationParams(request.nextUrl.searchParams)
@@ -63,17 +64,17 @@ export async function GET(request: NextRequest) {
       deletedAt: null, // Always filter soft-deleted records
     }
 
-    if (user.role === 'BUYER') {
+    if (session.role === 'BUYER') {
       // Buyers see their own houses
-      baseWhere.buyerId = user.userId
-    } else if (user.role === 'REALTOR') {
+      baseWhere.buyerId = session.userId
+    } else if (session.role === 'REALTOR') {
       // Realtors see houses of their connected buyers
       const connectedBuyers = await prisma.buyerRealtor.findMany({
-        where: { realtorId: user.userId, deletedAt: null },
+        where: { realtorId: session.userId, deletedAt: null },
         select: { buyerId: true },
       })
       baseWhere.buyerId = { in: connectedBuyers.map((c) => c.buyerId) }
-    } else if (user.role === 'ADMIN') {
+    } else if (session.role === 'ADMIN') {
       // Admins see all houses
     }
 
@@ -213,9 +214,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Parse and validate body
@@ -235,9 +236,9 @@ export async function POST(request: NextRequest) {
     // Determine target buyer ID
     let targetBuyerId: string
 
-    if (user.role === 'BUYER') {
-      targetBuyerId = user.userId
-    } else if (user.role === 'REALTOR' || user.role === 'ADMIN') {
+    if (session.role === 'BUYER') {
+      targetBuyerId = session.userId
+    } else if (session.role === 'REALTOR' || session.role === 'ADMIN') {
       if (!buyerId) {
         return errorResponse(
             ErrorCode.VALIDATION_ERROR,
@@ -246,10 +247,10 @@ export async function POST(request: NextRequest) {
       }
 
       // Verify realtor is connected to this buyer
-      if (user.role === 'REALTOR') {
+      if (session.role === 'REALTOR') {
         const connection = await prisma.buyerRealtor.findFirst({
           where: {
-            realtorId: user.userId,
+            realtorId: session.userId,
             buyerId,
           },
         })
@@ -326,7 +327,7 @@ export async function POST(request: NextRequest) {
       data: {
         houseId: house.id,
         buyerId: targetBuyerId,
-        addedByRealtorId: user.role === 'REALTOR' ? user.userId : null,
+        addedByRealtorId: session.role === 'REALTOR' ? session.userId : null,
         notes,
       },
       include: {
@@ -343,9 +344,9 @@ export async function POST(request: NextRequest) {
 
     // If realtor added the house, notify the buyer (in a real app, send notification)
     // For now, just log it
-    if (user.role === 'REALTOR') {
+    if (session.role === 'REALTOR') {
       console.log(
-        `Realtor ${user.userId} added house ${house.id} for buyer ${targetBuyerId}`
+        `Realtor ${session.userId} added house ${house.id} for buyer ${targetBuyerId}`
       )
     }
 

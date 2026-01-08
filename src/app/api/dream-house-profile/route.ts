@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { extractProfileFromChat, DreamHousePreferences } from '@/lib/ai'
 import { Prisma } from '@prisma/client'
 
@@ -11,18 +11,18 @@ import { Prisma } from '@prisma/client'
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can have dream house profiles
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can have dream house profiles')
     }
 
     const profile = await prisma.dreamHouseProfile.findUnique({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
     })
 
     if (!profile) {
@@ -56,13 +56,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can create dream house profiles
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can create dream house profiles')
     }
 
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Get existing profile
     const existingProfile = await prisma.dreamHouseProfile.findUnique({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
     })
 
     if (!existingProfile) {
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     // Update profile
     const updated = await prisma.dreamHouseProfile.update({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
       data: {
         profile: profileData ? (profileData as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
         isComplete: markComplete || existingProfile.isComplete,
@@ -125,18 +125,18 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can delete their profiles
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can reset their dream house profiles')
     }
 
     const existingProfile = await prisma.dreamHouseProfile.findUnique({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
     })
 
     if (!existingProfile) {
@@ -145,7 +145,7 @@ export async function DELETE(request: NextRequest) {
 
     // Reset profile instead of deleting
     await prisma.dreamHouseProfile.update({
-      where: { buyerId: user.userId },
+      where: { buyerId: session.userId },
       data: {
         profile: Prisma.JsonNull,
         trainingChats: [],

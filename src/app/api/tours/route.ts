@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode, paginatedResponse } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, paginatedResponse, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 
 // Schema for query params
@@ -26,13 +26,13 @@ const createTourSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only realtors and admins can list tours
-    if (user.role !== 'REALTOR' && user.role !== 'ADMIN') {
+    if (session.role !== 'REALTOR' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only realtors can view tours')
     }
 
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     const where: any = {
-      realtorId: user.userId,
+      realtorId: session.userId,
       deletedAt: null,
     }
 
@@ -122,13 +122,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only realtors can create tours
-    if (user.role !== 'REALTOR' && user.role !== 'ADMIN') {
+    if (session.role !== 'REALTOR' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only realtors can create tours')
     }
 
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
       const connection = await prisma.buyerRealtor.findFirst({
         where: {
           buyerId,
-          realtorId: user.userId,
+          realtorId: session.userId,
           deletedAt: null,
         },
       })
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
     const tour = await prisma.tour.create({
       data: {
         name,
-        realtorId: user.userId,
+        realtorId: session.userId,
         buyerId,
         scheduledDate: scheduledDate ? new Date(scheduledDate) : null,
         notes,

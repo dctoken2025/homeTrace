@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode, paginatedResponse } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, paginatedResponse, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 
 // Schema for query params
@@ -16,9 +16,9 @@ const querySchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const searchParams = Object.fromEntries(request.nextUrl.searchParams.entries())
@@ -40,11 +40,11 @@ export async function GET(request: NextRequest) {
       deletedAt: null,
     }
 
-    if (user.role === 'BUYER') {
-      where.buyerId = user.userId
-    } else if (user.role === 'REALTOR') {
-      where.realtorId = user.userId
-    } else if (user.role !== 'ADMIN') {
+    if (session.role === 'BUYER') {
+      where.buyerId = session.userId
+    } else if (session.role === 'REALTOR') {
+      where.realtorId = session.userId
+    } else if (session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Access denied')
     }
 

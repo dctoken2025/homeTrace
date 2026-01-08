@@ -1,18 +1,18 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getRequestUser } from '@/lib/auth'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
 import { subDays, startOfMonth } from 'date-fns'
 
 // GET /api/admin/config - Get system configuration status
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
-    if (user.role !== 'ADMIN') {
+    if (session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Admin access required')
     }
 
@@ -100,12 +100,12 @@ export async function GET(request: NextRequest) {
 // In production, you should use a secrets manager instead
 export async function PUT(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
-    if (user.role !== 'ADMIN') {
+    if (session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Admin access required')
     }
 
@@ -146,7 +146,7 @@ export async function PUT(request: NextRequest) {
           method: 'PUT',
           requestBody: { updatedKeys: updates },
           responseStatus: 200,
-          userId: user.userId,
+          userId: session.userId,
         },
       })
     }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode, paginatedResponse } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, paginatedResponse, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { uploadAudio } from '@/lib/storage'
 import { z } from 'zod'
 import { DEFAULT_ROOMS } from '@/types'
@@ -29,9 +29,9 @@ const createRecordingSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const searchParams = Object.fromEntries(request.nextUrl.searchParams.entries())
@@ -54,12 +54,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Role-based filtering
-    if (user.role === 'BUYER') {
-      where.buyerId = user.userId
-    } else if (user.role === 'REALTOR') {
+    if (session.role === 'BUYER') {
+      where.buyerId = session.userId
+    } else if (session.role === 'REALTOR') {
       // Get connected buyers
       const connectedBuyers = await prisma.buyerRealtor.findMany({
-        where: { realtorId: user.userId },
+        where: { realtorId: session.userId },
         select: { buyerId: true },
       })
       const buyerIds = connectedBuyers.map((c) => c.buyerId)
@@ -145,13 +145,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can create recordings
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can create recordings')
     }
 
@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Only the visit owner can add recordings
-    if (user.role !== 'ADMIN' && visit.buyerId !== user.userId) {
+    if (session.role !== 'ADMIN' && visit.buyerId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the visit owner can add recordings')
     }
 
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
     const recording = await prisma.recording.create({
       data: {
         visitId,
-        buyerId: user.userId,
+        buyerId: session.userId,
         roomId,
         roomName: finalRoomName,
         audioUrl,

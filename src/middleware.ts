@@ -19,6 +19,7 @@ const PUBLIC_API_ROUTES = [
   '/api/auth/login',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
+  '/api/auth/refresh',
   '/api/invites/validate',
 ]
 
@@ -51,9 +52,9 @@ export async function middleware(request: NextRequest) {
   // Allow public routes
   if (PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(route + '/'))) {
     // If user is authenticated and trying to access auth pages, redirect to dashboard
-    const token = request.cookies.get('auth-token')?.value
-    if (token && (pathname === '/sign-in' || pathname.startsWith('/sign-up'))) {
-      const payload = await verifyAuth(token)
+    const accessToken = request.cookies.get('access_token')?.value
+    if (accessToken && (pathname === '/sign-in' || pathname.startsWith('/sign-up'))) {
+      const payload = await verifyAuth(accessToken)
       if (payload) {
         const role = payload.role as string
         const redirectPath = role === 'ADMIN' ? '/admin' : role === 'REALTOR' ? '/realtor' : '/client'
@@ -68,17 +69,26 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // For API routes, check Authorization header
+  // For API routes, check access_token cookie or Authorization header
   if (pathname.startsWith('/api/')) {
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // First try access_token cookie
+    let token = request.cookies.get('access_token')?.value
+
+    // Fallback to Authorization header for API clients
+    if (!token) {
+      const authHeader = request.headers.get('authorization')
+      if (authHeader?.startsWith('Bearer ')) {
+        token = authHeader.slice(7)
+      }
+    }
+
+    if (!token) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
         { status: 401 }
       )
     }
 
-    const token = authHeader.split(' ')[1]
     const payload = await verifyAuth(token)
 
     if (!payload) {
@@ -93,6 +103,9 @@ export async function middleware(request: NextRequest) {
     requestHeaders.set('x-user-id', payload.userId as string)
     requestHeaders.set('x-user-email', payload.email as string)
     requestHeaders.set('x-user-role', payload.role as string)
+    if (payload.sessionId) {
+      requestHeaders.set('x-session-id', payload.sessionId as string)
+    }
 
     return NextResponse.next({
       request: {
@@ -101,19 +114,23 @@ export async function middleware(request: NextRequest) {
     })
   }
 
-  // For page routes, check cookie
-  const token = request.cookies.get('auth-token')?.value
+  // For page routes, check access_token cookie
+  const accessToken = request.cookies.get('access_token')?.value
 
-  if (!token) {
+  if (!accessToken) {
     const signInUrl = new URL('/sign-in', request.url)
     signInUrl.searchParams.set('redirect', pathname)
     return NextResponse.redirect(signInUrl)
   }
 
-  const payload = await verifyAuth(token)
+  const payload = await verifyAuth(accessToken)
 
   if (!payload) {
+    // Token invalid, clear cookies and redirect to sign-in
     const response = NextResponse.redirect(new URL('/sign-in', request.url))
+    response.cookies.delete('access_token')
+    response.cookies.delete('refresh_token')
+    // Also clear legacy cookie
     response.cookies.delete('auth-token')
     return response
   }

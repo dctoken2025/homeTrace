@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 
 // Schema for updating profile
@@ -18,13 +18,13 @@ const updateProfileSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const userData = await prisma.user.findUnique({
-      where: { id: user.userId },
+      where: { id: session.userId },
       select: {
         id: true,
         email: true,
@@ -46,13 +46,13 @@ export async function GET(request: NextRequest) {
     let privacySettings = null
     if (userData.role === 'BUYER') {
       privacySettings = await prisma.privacySettings.findUnique({
-        where: { buyerId: user.userId },
+        where: { buyerId: session.userId },
       })
 
       // Create default privacy settings if not exists
       if (!privacySettings) {
         privacySettings = await prisma.privacySettings.create({
-          data: { buyerId: user.userId },
+          data: { buyerId: session.userId },
         })
       }
     }
@@ -62,26 +62,26 @@ export async function GET(request: NextRequest) {
     if (userData.role === 'BUYER') {
       const [housesCount, visitsCount, realtorsCount] = await Promise.all([
         prisma.houseBuyer.count({
-          where: { buyerId: user.userId, deletedAt: null },
+          where: { buyerId: session.userId, deletedAt: null },
         }),
         prisma.visit.count({
-          where: { buyerId: user.userId, deletedAt: null },
+          where: { buyerId: session.userId, deletedAt: null },
         }),
         prisma.buyerRealtor.count({
-          where: { buyerId: user.userId, deletedAt: null },
+          where: { buyerId: session.userId, deletedAt: null },
         }),
       ])
       stats = { housesCount, visitsCount, realtorsCount }
     } else if (userData.role === 'REALTOR') {
       const [clientsCount, toursCount, invitesPendingCount] = await Promise.all([
         prisma.buyerRealtor.count({
-          where: { realtorId: user.userId, deletedAt: null },
+          where: { realtorId: session.userId, deletedAt: null },
         }),
         prisma.tour.count({
-          where: { realtorId: user.userId, deletedAt: null },
+          where: { realtorId: session.userId, deletedAt: null },
         }),
         prisma.invite.count({
-          where: { realtorId: user.userId, status: 'PENDING' },
+          where: { realtorId: session.userId, status: 'PENDING' },
         }),
       ])
       stats = { clientsCount, toursCount, invitesPendingCount }
@@ -110,9 +110,9 @@ export async function GET(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const body = await request.json()
@@ -129,7 +129,7 @@ export async function PATCH(request: NextRequest) {
     const { name, phone, timezone, avatarUrl } = validation.data
 
     const updatedUser = await prisma.user.update({
-      where: { id: user.userId },
+      where: { id: session.userId },
       data: {
         ...(name !== undefined && { name }),
         ...(phone !== undefined && { phone }),

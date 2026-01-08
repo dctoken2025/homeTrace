@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode, paginatedResponse } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, paginatedResponse, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { sendInviteEmail } from '@/lib/email'
 import { z } from 'zod'
 import { addDays } from 'date-fns'
@@ -27,13 +27,13 @@ const createInviteSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only realtors can list their invites
-    if (user.role !== 'REALTOR' && user.role !== 'ADMIN') {
+    if (session.role !== 'REALTOR' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only realtors can view invites')
     }
 
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     const where: any = {
-      realtorId: user.userId,
+      realtorId: session.userId,
     }
 
     if (status) where.status = status
@@ -109,13 +109,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only realtors can create invites
-    if (user.role !== 'REALTOR' && user.role !== 'ADMIN') {
+    if (session.role !== 'REALTOR' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only realtors can send invites')
     }
 
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     // Check if there's already a pending invite for this email from this realtor
     const existingInvite = await prisma.invite.findFirst({
       where: {
-        realtorId: user.userId,
+        realtorId: session.userId,
         email,
         status: 'PENDING',
         expiresAt: { gt: new Date() },
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
       const existingConnection = await prisma.buyerRealtor.findFirst({
         where: {
           buyerId: existingUser.id,
-          realtorId: user.userId,
+          realtorId: session.userId,
           deletedAt: null,
         },
       })
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest) {
     // Create invite
     const invite = await prisma.invite.create({
       data: {
-        realtorId: user.userId,
+        realtorId: session.userId,
         email,
         name,
         phone,
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
 
     // Get realtor name for the email
     const realtor = await prisma.user.findUnique({
-      where: { id: user.userId },
+      where: { id: session.userId },
       select: { name: true },
     })
 

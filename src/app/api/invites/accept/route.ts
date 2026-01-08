@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 
 // Schema for accepting an invite
@@ -75,13 +75,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required. Please sign up or log in first.')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can accept invites
-    if (user.role !== 'BUYER') {
+    if (session.role !== 'BUYER') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can accept realtor invites')
     }
 
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     // Check if already connected
     const existingConnection = await prisma.buyerRealtor.findFirst({
       where: {
-        buyerId: user.userId,
+        buyerId: session.userId,
         realtorId: invite.realtorId,
         deletedAt: null,
       },
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     const [connection] = await prisma.$transaction([
       prisma.buyerRealtor.create({
         data: {
-          buyerId: user.userId,
+          buyerId: session.userId,
           realtorId: invite.realtorId,
           invitedById: invite.realtorId,
         },

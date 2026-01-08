@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { ReportContent } from '@/lib/ai-reports'
 
 interface RouteParams {
@@ -16,9 +16,9 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -41,14 +41,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Check access
-    if (user.role === 'BUYER' && report.buyerId !== user.userId) {
+    if (session.role === 'BUYER' && report.buyerId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Access denied')
     }
 
-    if (user.role === 'REALTOR') {
+    if (session.role === 'REALTOR') {
       const connection = await prisma.buyerRealtor.findFirst({
         where: {
-          realtorId: user.userId,
+          realtorId: session.userId,
           buyerId: report.buyerId,
           deletedAt: null,
         },
@@ -129,9 +129,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -145,7 +145,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Only the owner or admin can delete
-    if (user.role !== 'ADMIN' && report.buyerId !== user.userId) {
+    if (session.role !== 'ADMIN' && report.buyerId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the report owner can delete it')
     }
 

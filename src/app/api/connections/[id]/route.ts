@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 
 interface RouteParams {
   params: Promise<{
@@ -15,9 +15,9 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -50,9 +50,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Check access
     if (
-      user.role !== 'ADMIN' &&
-      connection.buyerId !== user.userId &&
-      connection.realtorId !== user.userId
+      session.role !== 'ADMIN' &&
+      connection.buyerId !== session.userId &&
+      connection.realtorId !== session.userId
     ) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Access denied')
     }
@@ -80,9 +80,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -97,9 +97,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Check access - both buyer and realtor can remove the connection
     if (
-      user.role !== 'ADMIN' &&
-      connection.buyerId !== user.userId &&
-      connection.realtorId !== user.userId
+      session.role !== 'ADMIN' &&
+      connection.buyerId !== session.userId &&
+      connection.realtorId !== session.userId
     ) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Access denied')
     }

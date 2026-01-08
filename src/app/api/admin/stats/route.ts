@@ -1,20 +1,18 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { verifyToken } from '@/lib/jwt'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify auth token
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    // Get authenticated user from session (cookie-based auth)
+    const session = await getSessionUser(request)
+
+    if (!session) {
+      return Errors.unauthorized()
     }
 
-    const token = authHeader.substring(7)
-    const payload = await verifyToken(token)
-    
-    if (!payload || payload.role !== 'ADMIN') {
+    if (session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Admin access required')
     }
 

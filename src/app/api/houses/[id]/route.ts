@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser, canAccessBuyerResources } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 
 interface RouteParams {
@@ -22,9 +22,9 @@ const updateSchema = z.object({
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -56,15 +56,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Check access permissions
     const hasAccess =
-      user.role === 'ADMIN' ||
-      houseBuyer.buyerId === user.userId ||
-      houseBuyer.addedByRealtorId === user.userId
+      session.role === 'ADMIN' ||
+      houseBuyer.buyerId === session.userId ||
+      houseBuyer.addedByRealtorId === session.userId
 
-    if (!hasAccess && user.role === 'REALTOR') {
+    if (!hasAccess && session.role === 'REALTOR') {
       // Check if realtor is connected to this buyer
       const connection = await prisma.buyerRealtor.findFirst({
         where: {
-          realtorId: user.userId,
+          realtorId: session.userId,
           buyerId: houseBuyer.buyerId,
         },
       })
@@ -149,9 +149,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  */
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -180,9 +180,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     // Check access permissions - only buyer or realtor who added can edit
     const hasAccess =
-      user.role === 'ADMIN' ||
-      houseBuyer.buyerId === user.userId ||
-      houseBuyer.addedByRealtorId === user.userId
+      session.role === 'ADMIN' ||
+      houseBuyer.buyerId === session.userId ||
+      houseBuyer.addedByRealtorId === session.userId
 
     if (!hasAccess) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Access denied')
@@ -230,9 +230,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -254,7 +254,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Check access permissions - only buyer who owns or admin can delete
     const canDelete =
-      user.role === 'ADMIN' || houseBuyer.buyerId === user.userId
+      session.role === 'ADMIN' || houseBuyer.buyerId === session.userId
 
     if (!canDelete) {
       return errorResponse(
@@ -271,9 +271,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // If a realtor added this house, they should be notified
     // In a real app, this would send a notification
-    if (houseBuyer.addedByRealtorId && houseBuyer.addedByRealtorId !== user.userId) {
+    if (houseBuyer.addedByRealtorId && houseBuyer.addedByRealtorId !== session.userId) {
       console.log(
-        `Buyer ${user.userId} removed house ${houseBuyer.house.address} that was added by realtor ${houseBuyer.addedByRealtorId}`
+        `Buyer ${session.userId} removed house ${houseBuyer.house.address} that was added by realtor ${houseBuyer.addedByRealtorId}`
       )
     }
 

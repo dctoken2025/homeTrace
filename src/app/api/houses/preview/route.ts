@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { realtyAPI, transformPropertyToHouse, formatPrice } from '@/lib/realty-api'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 import { checkRateLimit, getIdentifier } from '@/lib/rate-limit'
 
@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify authentication
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { searchParams } = new URL(request.url)
@@ -59,23 +59,23 @@ export async function GET(request: NextRequest) {
 
     if (existingHouse) {
       // Check if user already has this house in their list
-      if (user.role === 'BUYER') {
+      if (session.role === 'BUYER') {
         existingConnection = await prisma.houseBuyer.findFirst({
           where: {
             houseId: existingHouse.id,
-            buyerId: user.userId,
+            buyerId: session.userId,
           },
         })
 
         if (existingConnection) {
           connectionStatus = 'already_added'
         }
-      } else if (user.role === 'REALTOR') {
+      } else if (session.role === 'REALTOR') {
         // For realtors, check if they've added this house for any buyer
         existingConnection = await prisma.houseBuyer.findFirst({
           where: {
             houseId: existingHouse.id,
-            addedByRealtorId: user.userId,
+            addedByRealtorId: session.userId,
           },
           include: {
             buyer: {
@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
                 id: existingConnection.id,
                 isFavorite: existingConnection.isFavorite,
                 // Only include buyer info for realtor
-                ...(user.role === 'REALTOR' && 'buyer' in existingConnection
+                ...(session.role === 'REALTOR' && 'buyer' in existingConnection
                   ? { buyer: existingConnection.buyer }
                   : {}),
               }

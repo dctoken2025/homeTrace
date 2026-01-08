@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode, paginatedResponse } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, paginatedResponse, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { z } from 'zod'
 
 // Schema for query params
@@ -17,13 +17,13 @@ const querySchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only realtors and admins can list clients
-    if (user.role !== 'REALTOR' && user.role !== 'ADMIN') {
+    if (session.role !== 'REALTOR' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only realtors can view clients')
     }
 
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     // Get connected buyers
     const where: any = {
-      realtorId: user.userId,
+      realtorId: session.userId,
       deletedAt: null,
     }
 

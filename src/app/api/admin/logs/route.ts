@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 
 /**
  * GET /api/admin/logs
@@ -9,8 +9,11 @@ import { getRequestUser } from '@/lib/auth'
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getRequestUser(request)
-    if (!user || user.role !== 'ADMIN') {
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
+    }
+    if (session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Admin access required')
     }
 

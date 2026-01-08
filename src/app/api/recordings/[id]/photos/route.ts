@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse, ErrorCode } from '@/lib/api-response'
-import { getRequestUser } from '@/lib/auth'
+import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
+import { getSessionUser } from '@/lib/auth-session'
 import { uploadPhoto, deleteFile } from '@/lib/storage'
 import { z } from 'zod'
 
@@ -17,13 +17,13 @@ interface RouteParams {
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     // Only buyers can upload photos
-    if (user.role !== 'BUYER' && user.role !== 'ADMIN') {
+    if (session.role !== 'BUYER' && session.role !== 'ADMIN') {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only buyers can upload photos')
     }
 
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Only the recording owner can add photos
-    if (user.role !== 'ADMIN' && recording.buyerId !== user.userId) {
+    if (session.role !== 'ADMIN' && recording.buyerId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the recording owner can add photos')
     }
 
@@ -115,9 +115,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const user = await getRequestUser(request)
-    if (!user) {
-      return errorResponse(ErrorCode.UNAUTHORIZED, 'Authentication required')
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
     }
 
     const { id } = await params
@@ -142,7 +142,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Only the recording owner or admin can delete photos
-    if (user.role !== 'ADMIN' && recording.buyerId !== user.userId) {
+    if (session.role !== 'ADMIN' && recording.buyerId !== session.userId) {
       return errorResponse(ErrorCode.FORBIDDEN, 'Only the recording owner can delete photos')
     }
 
