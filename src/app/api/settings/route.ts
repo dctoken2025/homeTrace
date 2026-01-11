@@ -10,6 +10,7 @@ const updateProfileSchema = z.object({
   phone: z.string().max(20).nullable().optional(),
   timezone: z.string().max(50).optional(),
   avatarUrl: z.string().url().nullable().optional(),
+  hasCompletedOnboarding: z.boolean().optional(),
 })
 
 /**
@@ -126,7 +127,7 @@ export async function PATCH(request: NextRequest) {
         )
     }
 
-    const { name, phone, timezone, avatarUrl } = validation.data
+    const { name, phone, timezone, avatarUrl, hasCompletedOnboarding } = validation.data
 
     const updatedUser = await prisma.user.update({
       where: { id: session.userId },
@@ -135,6 +136,7 @@ export async function PATCH(request: NextRequest) {
         ...(phone !== undefined && { phone }),
         ...(timezone !== undefined && { timezone }),
         ...(avatarUrl !== undefined && { avatarUrl }),
+        ...(hasCompletedOnboarding !== undefined && { hasCompletedOnboarding }),
       },
       select: {
         id: true,
