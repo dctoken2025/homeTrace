@@ -6,7 +6,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { SearchInput, Select } from '@/components/ui/Form'
 import { NetworkError } from '@/components/ui/ErrorState'
-import { formatPrice } from '@/lib/realty-api'
+import { formatPrice } from '@/lib/format-utils'
 import { format, parseISO } from 'date-fns'
 
 interface House {

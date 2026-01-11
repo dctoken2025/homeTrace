@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { IconButton } from '@/components/ui/Button'
-import { formatPrice, getStatusLabel, getStatusColor, formatSqft } from '@/lib/realty-api'
+import { formatPrice, getStatusLabel, getStatusColor, formatSqft } from '@/lib/format-utils'
 
 interface House {
   id: string
@@ -21,6 +21,7 @@ interface House {
   propertyType?: string | null
   listingStatus?: string | null
   photos?: string[]
+  images?: string[]
   lastUpdated?: Date | string
 }
 
@@ -50,8 +51,10 @@ export default function HouseCard({
   const [imageError, setImageError] = useState(false)
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false)
 
-  const photoUrl = house.photos?.[0]
+  // Support both 'photos' and 'images' field names (API returns 'images')
+  const photoUrl = house.photos?.[0] || house.images?.[0]
   const hasImage = photoUrl && !imageError
+  const photoCount = house.photos?.length || house.images?.length || 0
 
   const handleFavoriteClick = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -177,9 +180,9 @@ export default function HouseCard({
         )}
 
         {/* Photo count indicator */}
-        {house.photos && house.photos.length > 1 && (
+        {photoCount > 1 && (
           <div className="absolute bottom-3 left-3 px-2 py-1 bg-black/60 text-white text-xs rounded-md">
-            1/{house.photos.length}
+            1/{photoCount}
           </div>
         )}
       </div>
@@ -291,7 +294,8 @@ export function HouseCardCompact({
 }: Omit<HouseCardProps, 'showActions' | 'onRemove' | 'matchScore' | 'visitCount'>) {
   const [imageError, setImageError] = useState(false)
 
-  const photoUrl = house.photos?.[0]
+  // Support both 'photos' and 'images' field names (API returns 'images')
+  const photoUrl = house.photos?.[0] || house.images?.[0]
   const hasImage = photoUrl && !imageError
 
   const detailUrl = houseBuyerId

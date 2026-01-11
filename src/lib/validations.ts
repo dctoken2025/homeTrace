@@ -4,19 +4,21 @@ import { z } from 'zod'
 
 export const emailSchema = z
   .string()
-  .email('Invalid email format')
   .min(1, 'Email is required')
-  .max(255, 'Email too long')
+  .email('Please enter a valid email address')
+  .max(255, 'Email is too long')
 
 export const passwordSchema = z
   .string()
+  .min(1, 'Password is required')
   .min(8, 'Password must be at least 8 characters')
-  .max(128, 'Password too long')
+  .max(128, 'Password is too long')
 
 export const nameSchema = z
   .string()
-  .min(1, 'Name is required')
-  .max(100, 'Name too long')
+  .min(1, 'Full name is required')
+  .min(2, 'Name must be at least 2 characters')
+  .max(100, 'Name is too long')
 
 export const phoneSchema = z
   .string()

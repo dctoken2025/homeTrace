@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import Card from '@/components/ui/Card';
 import { House, HouseVisit, IMPRESSION_EMOJIS } from '@/types';
-import { formatPrice } from '@/lib/realty-api';
+import { formatPrice } from '@/lib/format-utils';
 
 interface HouseCardProps {
   house: House;

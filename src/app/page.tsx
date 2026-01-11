@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import Image from 'next/image';
+import { HeroImageCarousel } from '@/components/HeroImageCarousel';
 
 export default function LandingPage() {
   return (
@@ -90,17 +90,7 @@ export default function LandingPage() {
               <div className="absolute inset-0 rounded-3xl blur-3xl opacity-20 transform rotate-6" style={{ background: 'linear-gradient(135deg, #006AFF 0%, #0D47A1 100%)' }}></div>
               <div className="relative bg-gradient-to-br from-gray-50 to-gray-100 rounded-3xl p-8 shadow-2xl">
                 <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                  <div className="relative h-48">
-                    <Image
-                      src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800"
-                      alt="Beautiful home"
-                      fill
-                      className="object-cover"
-                    />
-                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-sm font-medium" style={{ color: '#006AFF' }}>
-                      Visited
-                    </div>
-                  </div>
+                  <HeroImageCarousel />
                   <div className="p-4">
                     <p className="font-bold text-gray-900">$485,000</p>
                     <p className="text-sm text-gray-500">123 Oak Street, Austin TX</p>

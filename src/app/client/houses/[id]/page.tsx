@@ -9,7 +9,7 @@ import { LoadingSpinner } from '@/components/ui/Button'
 import { ConfirmModal } from '@/components/ui/Modal'
 import { NetworkError, NotFoundError } from '@/components/ui/ErrorState'
 import { useToast } from '@/components/ui/Toast'
-import { formatPrice, getStatusLabel, getStatusColor, formatSqft } from '@/lib/realty-api'
+import { formatPrice, getStatusLabel, getStatusColor, formatSqft } from '@/lib/format-utils'
 
 interface House {
   id: string
