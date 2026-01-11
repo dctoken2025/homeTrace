@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
-import { Calendar as BigCalendar, dateFnsLocalizer, Views, SlotInfo } from 'react-big-calendar'
+import { useState, useCallback, useMemo, useEffect } from 'react'
+import { Calendar as BigCalendar, dateFnsLocalizer, SlotInfo } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay, addMonths, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import { enUS } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
@@ -76,7 +76,7 @@ function EventComponent({ event }: { event: CalendarEvent }) {
   )
 }
 
-// Custom toolbar component
+// Custom toolbar component - Responsive
 function Toolbar({
   date,
   onNavigate,
@@ -92,15 +92,24 @@ function Toolbar({
     month: 'Month',
     week: 'Week',
     day: 'Day',
-    agenda: 'Agenda',
+    agenda: 'List',
+  }
+
+  // Short labels for mobile
+  const viewLabelsShort: Record<string, string> = {
+    month: 'M',
+    week: 'W',
+    day: 'D',
+    agenda: 'L',
   }
 
   return (
-    <div className="flex items-center justify-between mb-4 px-2">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 px-2">
+      {/* Navigation */}
+      <div className="flex items-center justify-between sm:justify-start gap-2">
         <button
           onClick={() => onNavigate('TODAY')}
-          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#006AFF]"
+          className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#006AFF]"
         >
           Today
         </button>
@@ -110,7 +119,7 @@ function Toolbar({
             className="px-2 py-1.5 text-gray-600 hover:bg-gray-100"
             aria-label="Previous"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
@@ -119,29 +128,38 @@ function Toolbar({
             className="px-2 py-1.5 text-gray-600 hover:bg-gray-100"
             aria-label="Next"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
         </div>
+
+        {/* Title - visible on mobile inline */}
+        <h2 className="text-base sm:hidden font-semibold text-gray-900">
+          {format(date, 'MMM yyyy')}
+        </h2>
       </div>
 
-      <h2 className="text-lg font-semibold text-gray-900">
+      {/* Title - hidden on mobile, visible on larger screens */}
+      <h2 className="hidden sm:block text-lg font-semibold text-gray-900">
         {format(date, 'MMMM yyyy')}
       </h2>
 
-      <div className="flex items-center gap-1 border border-gray-300 rounded-md overflow-hidden">
+      {/* View buttons */}
+      <div className="flex items-center gap-1 border border-gray-300 rounded-md overflow-hidden self-center sm:self-auto">
         {['month', 'week', 'day', 'agenda'].map((v) => (
           <button
             key={v}
             onClick={() => onView(v)}
-            className={`px-3 py-1.5 text-sm font-medium ${
+            className={`px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
               view === v
                 ? 'bg-[#006AFF] text-white'
                 : 'text-gray-700 hover:bg-gray-100'
             }`}
           >
-            {viewLabels[v]}
+            {/* Show short labels on mobile, full on larger screens */}
+            <span className="sm:hidden">{viewLabelsShort[v]}</span>
+            <span className="hidden sm:inline">{viewLabels[v]}</span>
           </button>
         ))}
       </div>
@@ -159,6 +177,41 @@ export default function Calendar({
 }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<'month' | 'week' | 'day' | 'agenda'>('month')
+  const [calendarHeight, setCalendarHeight] = useState(600)
+
+  // Responsive height calculation
+  useEffect(() => {
+    const updateHeight = () => {
+      const isMobile = window.innerWidth < 640
+      const isTablet = window.innerWidth < 1024
+
+      if (isMobile) {
+        // Mobile: smaller height, considering the header
+        setCalendarHeight(Math.min(450, window.innerHeight - 250))
+      } else if (isTablet) {
+        setCalendarHeight(500)
+      } else {
+        setCalendarHeight(600)
+      }
+    }
+
+    updateHeight()
+    window.addEventListener('resize', updateHeight)
+    return () => window.removeEventListener('resize', updateHeight)
+  }, [])
+
+  // Auto-switch to agenda view on mobile for better UX
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 640 && view === 'week') {
+        setView('agenda')
+      }
+    }
+
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [view])
 
   // Transform events to have Date objects
   const calendarEvents = useMemo(() => {
@@ -232,7 +285,7 @@ export default function Calendar({
   }, [])
 
   return (
-    <div className={`calendar-container ${className}`}>
+    <div className={`calendar-container relative ${className}`}>
       {loading && (
         <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#006AFF]" />
@@ -263,28 +316,28 @@ export default function Calendar({
           ),
           event: EventComponent,
         }}
-        style={{ height: 600 }}
+        style={{ height: calendarHeight }}
         views={['month', 'week', 'day', 'agenda']}
         popup
         showMultiDayTimes
       />
 
-      {/* Legend */}
-      <div className="mt-4 flex items-center gap-4 text-sm text-gray-600">
+      {/* Legend - responsive */}
+      <div className="mt-4 flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-600">
         <div className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-[#006AFF]" />
+          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-[#006AFF]" />
           <span>Scheduled</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-amber-500" />
+          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-amber-500" />
           <span>In Progress</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-green-500" />
+          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-green-500" />
           <span>Completed</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded bg-gray-400" />
+          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-gray-400" />
           <span>Cancelled</span>
         </div>
       </div>
@@ -292,22 +345,23 @@ export default function Calendar({
   )
 }
 
-// Loading skeleton for calendar
+// Loading skeleton for calendar - responsive
 export function CalendarSkeleton() {
   return (
     <div className="animate-pulse">
-      <div className="flex items-center justify-between mb-4">
-        <div className="h-8 w-20 bg-gray-200 rounded" />
-        <div className="h-6 w-32 bg-gray-200 rounded" />
-        <div className="h-8 w-48 bg-gray-200 rounded" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div className="h-8 w-32 bg-gray-200 rounded" />
+        <div className="h-6 w-28 bg-gray-200 rounded hidden sm:block" />
+        <div className="h-8 w-40 bg-gray-200 rounded" />
       </div>
 
-      <div className="border border-gray-200 rounded-lg">
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
         {/* Header row */}
         <div className="grid grid-cols-7 border-b border-gray-200">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-            <div key={day} className="p-2 text-center text-gray-400 text-sm">
-              {day}
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+            <div key={i} className="p-2 text-center text-gray-400 text-xs sm:text-sm">
+              <span className="sm:hidden">{day}</span>
+              <span className="hidden sm:inline">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i]}</span>
             </div>
           ))}
         </div>
@@ -318,11 +372,11 @@ export function CalendarSkeleton() {
             {[...Array(7)].map((_, dayIndex) => (
               <div
                 key={dayIndex}
-                className="h-24 p-1 border-r border-gray-200 last:border-r-0"
+                className="h-16 sm:h-24 p-1 border-r border-gray-200 last:border-r-0"
               >
                 <div className="h-4 w-4 bg-gray-200 rounded mb-1" />
                 {weekIndex % 2 === 0 && dayIndex % 3 === 0 && (
-                  <div className="h-5 w-full bg-gray-200 rounded" />
+                  <div className="h-4 sm:h-5 w-full bg-gray-200 rounded" />
                 )}
               </div>
             ))}

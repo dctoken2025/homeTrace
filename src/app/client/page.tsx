@@ -108,18 +108,18 @@ export default function ClientDashboard() {
         </div>
 
         {/* Stats skeleton */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
               <div className="animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-20 mb-2" />
-                <div className="h-8 bg-gray-200 rounded w-12" />
+                <div className="h-4 bg-gray-200 rounded w-16 sm:w-20 mb-2" />
+                <div className="h-6 sm:h-8 bg-gray-200 rounded w-10 sm:w-12" />
               </div>
             </Card>
           ))}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           <Card>
             <div className="animate-pulse">
               <div className="h-6 bg-gray-200 rounded w-32 mb-4" />
@@ -198,26 +198,26 @@ export default function ClientDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8">
         <Card>
-          <p className="text-sm text-gray-500">Houses to Visit</p>
-          <p className="text-3xl font-bold text-gray-900">{stats.totalHouses}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Houses to Visit</p>
+          <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalHouses}</p>
         </Card>
         <Card>
-          <p className="text-sm text-gray-500">Houses Visited</p>
-          <p className="text-3xl font-bold text-green-600">{stats.visitedHouses}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Houses Visited</p>
+          <p className="text-2xl sm:text-3xl font-bold text-green-600">{stats.visitedHouses}</p>
         </Card>
         <Card>
-          <p className="text-sm text-gray-500">Recordings</p>
-          <p className="text-3xl font-bold" style={{ color: '#006AFF' }}>{stats.totalRecordings}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Recordings</p>
+          <p className="text-2xl sm:text-3xl font-bold" style={{ color: '#006AFF' }}>{stats.totalRecordings}</p>
         </Card>
         <Card>
-          <p className="text-sm text-gray-500">Favorites</p>
-          <p className="text-3xl font-bold text-red-500">{stats.favorites}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Favorites</p>
+          <p className="text-2xl sm:text-3xl font-bold text-red-500">{stats.favorites}</p>
         </Card>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         {/* Upcoming Visits */}
         <Card>
           <div className="flex items-center justify-between mb-4">
@@ -304,13 +304,13 @@ export default function ClientDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-4 mt-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
         <Link href="/client/houses">
           <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: '#E3F2FD' }}>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#E3F2FD' }}>
                 <svg
-                  className="w-6 h-6"
+                  className="w-5 h-5 sm:w-6 sm:h-6"
                   style={{ color: '#006AFF' }}
                   fill="none"
                   stroke="currentColor"
@@ -324,9 +324,9 @@ export default function ClientDashboard() {
                   />
                 </svg>
               </div>
-              <div>
-                <p className="font-medium text-gray-900">View All Houses</p>
-                <p className="text-sm text-gray-500">Browse your house list</p>
+              <div className="min-w-0">
+                <p className="font-medium text-gray-900 text-sm sm:text-base">View All Houses</p>
+                <p className="text-xs sm:text-sm text-gray-500 truncate">Browse your house list</p>
               </div>
             </div>
           </Card>
@@ -334,10 +334,10 @@ export default function ClientDashboard() {
 
         <Link href="/client/compare">
           <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
                 <svg
-                  className="w-6 h-6 text-purple-600"
+                  className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -350,9 +350,9 @@ export default function ClientDashboard() {
                   />
                 </svg>
               </div>
-              <div>
-                <p className="font-medium text-gray-900">Compare Houses</p>
-                <p className="text-sm text-gray-500">Listen to your recordings side by side</p>
+              <div className="min-w-0">
+                <p className="font-medium text-gray-900 text-sm sm:text-base">Compare Houses</p>
+                <p className="text-xs sm:text-sm text-gray-500 truncate">Listen to recordings side by side</p>
               </div>
             </div>
           </Card>

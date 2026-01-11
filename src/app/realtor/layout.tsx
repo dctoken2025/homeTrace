@@ -57,15 +57,6 @@ const realtorNavItems = [
     ),
   },
   {
-    label: 'Invite Client',
-    href: '/realtor/invite',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-      </svg>
-    ),
-  },
-  {
     label: 'Settings',
     href: '/realtor/settings',
     icon: (
@@ -85,7 +76,7 @@ export default function RealtorLayout({
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={realtorNavItems} title="Realtor Portal" homeHref="/realtor" />
-      <main className="flex-1 p-6">{children}</main>
+      <main className="flex-1 pt-14 lg:pt-0 px-4 py-4 lg:p-6 min-w-0">{children}</main>
     </div>
   );
 }

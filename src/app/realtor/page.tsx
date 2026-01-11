@@ -105,26 +105,26 @@ export default function RealtorDashboard() {
         </div>
 
         {/* Stats skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
               <div className="animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-24 mb-2" />
-                <div className="h-8 bg-gray-200 rounded w-12" />
+                <div className="h-4 bg-gray-200 rounded w-20 sm:w-24 mb-2" />
+                <div className="h-6 sm:h-8 bg-gray-200 rounded w-10 sm:w-12" />
               </div>
             </Card>
           ))}
         </div>
 
         {/* Quick Actions skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
           {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i}>
               <div className="animate-pulse flex items-center gap-4">
-                <div className="w-12 h-12 bg-gray-200 rounded-lg" />
-                <div>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-200 rounded-lg flex-shrink-0" />
+                <div className="min-w-0 flex-1">
                   <div className="h-4 bg-gray-200 rounded w-20 mb-2" />
-                  <div className="h-3 bg-gray-200 rounded w-32" />
+                  <div className="h-3 bg-gray-200 rounded w-full max-w-[120px] sm:max-w-[150px]" />
                 </div>
               </div>
             </Card>
@@ -197,29 +197,29 @@ export default function RealtorDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8">
         <Card>
-          <p className="text-sm text-gray-500">Total Houses</p>
-          <p className="text-3xl font-bold text-gray-900">{stats.totalHouses}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Total Houses</p>
+          <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalHouses}</p>
         </Card>
         <Card>
-          <p className="text-sm text-gray-500">Scheduled Visits</p>
-          <p className="text-3xl font-bold" style={{ color: '#006AFF' }}>{stats.scheduledVisits}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Scheduled Visits</p>
+          <p className="text-2xl sm:text-3xl font-bold" style={{ color: '#006AFF' }}>{stats.scheduledVisits}</p>
         </Card>
         <Card>
-          <p className="text-sm text-gray-500">Completed Visits</p>
-          <p className="text-3xl font-bold text-green-600">{stats.completedVisits}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Completed Visits</p>
+          <p className="text-2xl sm:text-3xl font-bold text-green-600">{stats.completedVisits}</p>
         </Card>
         <Card>
-          <p className="text-sm text-gray-500">Active Clients</p>
-          <p className="text-lg font-semibold text-gray-900">
+          <p className="text-xs sm:text-sm text-gray-500">Active Clients</p>
+          <p className="text-base sm:text-lg font-semibold text-gray-900">
             {activeClient?.name || `${stats.activeClients} clients`}
           </p>
         </Card>
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         <Link href="/realtor/houses">
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <div className="flex items-center gap-4">

@@ -169,17 +169,17 @@ export default function RealtorSettings() {
 
       {/* Stats Cards */}
       {settings?.stats && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <Card className="text-center">
-            <p className="text-3xl font-bold" style={{ color: '#006AFF' }}>{settings.stats.clientsCount}</p>
+            <p className="text-2xl sm:text-3xl font-bold" style={{ color: '#006AFF' }}>{settings.stats.clientsCount}</p>
             <p className="text-sm text-gray-600">Clients</p>
           </Card>
           <Card className="text-center">
-            <p className="text-3xl font-bold text-green-600">{settings.stats.toursCount}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-green-600">{settings.stats.toursCount}</p>
             <p className="text-sm text-gray-600">Tours</p>
           </Card>
           <Card className="text-center">
-            <p className="text-3xl font-bold text-yellow-600">{settings.stats.invitesPendingCount}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-yellow-600">{settings.stats.invitesPendingCount}</p>
             <p className="text-sm text-gray-600">Pending Invites</p>
           </Card>
         </div>
