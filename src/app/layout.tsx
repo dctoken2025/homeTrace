@@ -16,6 +16,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "HomeTrace - Clarity for every step toward your home",
   description: "HomeTrace helps home buyers capture their impressions during each visit and uses AI to turn them into clear, memorable comparisons—so choosing the right home feels easy.",
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-icon.svg',
+  },
 };
 
 export default function RootLayout({
