@@ -271,36 +271,41 @@ export default function RealtorHouseDetailPage() {
 
   const houseBuyerId = params.id as string
 
-  useEffect(() => {
-    const fetchHouseDetail = async () => {
-      try {
+  const fetchHouseDetail = async (showLoading = true) => {
+    try {
+      if (showLoading) {
         setIsLoading(true)
-        setError(null)
+      }
+      setError(null)
 
-        const response = await fetch(`/api/houses/${houseBuyerId}`)
-        const data = await response.json()
+      const response = await fetch(`/api/houses/${houseBuyerId}`)
+      const data = await response.json()
 
-        if (!response.ok) {
-          if (response.status === 404) {
-            setError('not_found')
-          } else {
-            throw new Error(data.error?.message || 'Failed to load house')
-          }
-          return
+      if (!response.ok) {
+        if (response.status === 404) {
+          setError('not_found')
+        } else {
+          throw new Error(data.error?.message || 'Failed to load house')
         }
+        return
+      }
 
-        setHouseDetail(data.data)
-      } catch (err) {
-        console.error('Fetch house detail error:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load house')
-      } finally {
+      setHouseDetail(data.data)
+    } catch (err) {
+      console.error('Fetch house detail error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load house')
+    } finally {
+      if (showLoading) {
         setIsLoading(false)
       }
     }
+  }
 
+  useEffect(() => {
     if (houseBuyerId) {
       fetchHouseDetail()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [houseBuyerId])
 
   const handleRefresh = async () => {
@@ -984,62 +989,6 @@ export default function RealtorHouseDetailPage() {
             </div>
           )}
 
-          {/* Pending Suggestions */}
-          {suggestions.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Sent Suggestions</h2>
-              <div className="space-y-3">
-                {suggestions.map((suggestion) => {
-                  const isPending = suggestion.status === 'PENDING'
-                  const isExpired = suggestion.status === 'EXPIRED' || (isPending && new Date(suggestion.suggestedAt) < new Date())
-
-                  return (
-                    <div
-                      key={suggestion.id}
-                      className={`p-4 rounded-lg border ${
-                        suggestion.status === 'ACCEPTED' ? 'bg-green-50 border-green-200' :
-                        suggestion.status === 'REJECTED' ? 'bg-red-50 border-red-200' :
-                        isExpired ? 'bg-gray-50 border-gray-200' :
-                        'bg-amber-50 border-amber-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {new Date(suggestion.suggestedAt).toLocaleDateString('en-US', {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: 'numeric',
-                              minute: '2-digit',
-                            })}
-                          </p>
-                          {suggestion.message && (
-                            <p className="text-sm text-gray-500 mt-1">{suggestion.message}</p>
-                          )}
-                          <p className="text-xs text-gray-400 mt-1">
-                            Sent {new Date(suggestion.createdAt).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                            })}
-                          </p>
-                        </div>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          suggestion.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' :
-                          suggestion.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                          isExpired ? 'bg-gray-100 text-gray-800' :
-                          'bg-amber-100 text-amber-800'
-                        }`}>
-                          {isExpired && suggestion.status === 'PENDING' ? 'Expired' : suggestion.status}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Client's Visits */}
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Client&apos;s Visits</h2>
@@ -1174,6 +1123,56 @@ export default function RealtorHouseDetailPage() {
                 Remove from Client&apos;s List
               </Button>
             </div>
+
+            {/* Sent Suggestions */}
+            {suggestions.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Sent Suggestions</h3>
+                <div className="space-y-2">
+                  {suggestions.map((suggestion) => {
+                    const isPending = suggestion.status === 'PENDING'
+                    const isExpired = suggestion.status === 'EXPIRED' || (isPending && new Date(suggestion.suggestedAt) < new Date())
+
+                    return (
+                      <div
+                        key={suggestion.id}
+                        className={`p-3 rounded-lg border text-sm ${
+                          suggestion.status === 'ACCEPTED' ? 'bg-green-50 border-green-200' :
+                          suggestion.status === 'REJECTED' ? 'bg-red-50 border-red-200' :
+                          isExpired ? 'bg-gray-50 border-gray-200' :
+                          'bg-amber-50 border-amber-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900">
+                              {new Date(suggestion.suggestedAt).toLocaleDateString('en-US', {
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: 'numeric',
+                                minute: '2-digit',
+                              })}
+                            </p>
+                            {suggestion.message && (
+                              <p className="text-xs text-gray-500 mt-0.5 truncate">{suggestion.message}</p>
+                            )}
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
+                            suggestion.status === 'ACCEPTED' ? 'bg-green-100 text-green-800' :
+                            suggestion.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                            isExpired ? 'bg-gray-100 text-gray-800' :
+                            'bg-amber-100 text-amber-800'
+                          }`}>
+                            {isExpired && suggestion.status === 'PENDING' ? 'Expired' : suggestion.status}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Listing Agent */}
@@ -1371,6 +1370,7 @@ export default function RealtorHouseDetailPage() {
         onClose={() => setSuggestVisitModalOpen(false)}
         onSuccess={() => {
           success('Visit suggestion sent!')
+          fetchHouseDetail(false)
         }}
         houseBuyerId={houseBuyerId}
         house={{
