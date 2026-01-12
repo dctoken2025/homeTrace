@@ -137,7 +137,8 @@ export default function CalendarPage() {
       const data = await response.json()
 
       if (response.ok) {
-        setHouses(data.data.items.map((hb: any) => hb.house))
+        const housesArray = data.data?.items || data.data || []
+        setHouses(housesArray.map((hb: any) => hb.house))
       }
     } catch (err) {
       console.error('Fetch houses error:', err)
