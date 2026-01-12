@@ -167,6 +167,13 @@ export default function VoiceRecorder({
           }
         }
 
+        // Debug log
+        console.log('[VoiceRecorder] Speech result:', {
+          finalTranscript: finalTranscript || '(none)',
+          interimTranscript: interimTranscript || '(none)',
+          totalLength: transcriptionRef.current.length,
+        })
+
         if (finalTranscript) {
           transcriptionRef.current += finalTranscript
         }
@@ -177,9 +184,23 @@ export default function VoiceRecorder({
       }
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.error('Speech recognition error:', event.error)
+        console.error('[VoiceRecorder] Speech recognition error:', {
+          error: event.error,
+          message: event.message,
+          currentTranscription: transcriptionRef.current,
+        })
         if (event.error === 'not-allowed') {
           setPermissionDenied(true)
+        }
+        // Log other common errors
+        if (event.error === 'no-speech') {
+          console.warn('[VoiceRecorder] No speech detected - user may not be speaking or mic issue')
+        }
+        if (event.error === 'audio-capture') {
+          console.warn('[VoiceRecorder] Audio capture failed - microphone may be in use by another app')
+        }
+        if (event.error === 'network') {
+          console.warn('[VoiceRecorder] Network error - speech recognition requires internet')
         }
       }
 
@@ -258,6 +279,13 @@ export default function VoiceRecorder({
     const finalTranscription = transcriptionRef.current.trim()
     const finalDuration = state.duration
 
+    // Debug log
+    console.log('[VoiceRecorder] Recording stopped:', {
+      transcriptionLength: finalTranscription.length,
+      duration: finalDuration,
+      transcription: finalTranscription || '(empty)',
+    })
+
     setState(prev => ({
       ...prev,
       isRecording: false,
@@ -265,9 +293,9 @@ export default function VoiceRecorder({
       audioLevel: 0,
     }))
 
-    if (finalTranscription) {
-      onRecordingComplete(finalTranscription, finalDuration)
-    }
+    // Always call onRecordingComplete, even with empty transcription
+    // Let the parent component decide how to handle it
+    onRecordingComplete(finalTranscription, finalDuration)
     onRecordingStop?.()
   }, [state.duration, onRecordingComplete, onRecordingStop])
 

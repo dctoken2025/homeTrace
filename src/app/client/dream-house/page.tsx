@@ -73,10 +73,28 @@ export default function DreamHousePage() {
 
   // Handle recording complete - now receives transcription directly
   const handleRecordingComplete = (text: string, duration: number) => {
-    if (!text || text.trim().length < 20) {
-      showError('Recording too short', 'Please describe your dream home in more detail.')
+    console.log('[DreamHousePage] Recording complete:', {
+      textLength: text?.length || 0,
+      duration,
+      preview: text?.substring(0, 100) || '(empty)',
+    })
+
+    if (!text || text.trim().length === 0) {
+      showError(
+        'No speech detected',
+        'We couldn\'t detect any speech. Please try again and speak clearly into your microphone.'
+      )
       return
     }
+
+    if (text.trim().length < 20) {
+      showError(
+        'Recording too short',
+        `Please describe your dream home in more detail. (${text.trim().length}/20 characters minimum)`
+      )
+      return
+    }
+
     setTranscription(text)
     setRecordingDuration(duration)
     setViewMode('processing')

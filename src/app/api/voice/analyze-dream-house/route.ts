@@ -134,10 +134,18 @@ export async function POST(request: NextRequest) {
       return errorResponse(ErrorCode.VALIDATION_ERROR, 'Transcription text is required')
     }
 
-    if (transcription.length < 50) {
+    // Log received transcription for debugging
+    console.log('[analyze-dream-house] Received transcription:', {
+      length: transcription.length,
+      preview: transcription.substring(0, 100),
+      full: transcription.length < 200 ? transcription : '(truncated)',
+    })
+
+    if (transcription.length < 20) {
+      console.log('[analyze-dream-house] Transcription too short:', transcription.length)
       return errorResponse(
         ErrorCode.VALIDATION_ERROR,
-        'Please provide more details about your dream home (minimum 50 characters)'
+        'Please provide more details about your dream home (minimum 20 characters)'
       )
     }
 

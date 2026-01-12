@@ -97,7 +97,9 @@ export default function RealtorTours() {
       const response = await fetch('/api/houses');
       if (response.ok) {
         const data = await response.json();
-        setHouses(data.data || []);
+        // API returns paginated response with items containing { house: {...} }
+        const items = data.data?.items || [];
+        setHouses(items.map((item: { house: House }) => item.house));
       }
     } catch (err) {
       console.error('Failed to fetch houses:', err);
@@ -578,7 +580,7 @@ export default function RealtorTours() {
                     <option value="">Select a property</option>
                     {availableHouses.map((house) => (
                       <option key={house.id} value={house.id}>
-                        {house.address}, {house.city} - ${house.price.toLocaleString()}
+                        {house.address}, {house.city}{house.price ? ` - $${house.price.toLocaleString()}` : ''}
                       </option>
                     ))}
                   </select>
