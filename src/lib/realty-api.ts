@@ -124,6 +124,99 @@ export interface PropertySearchResult {
   }
 }
 
+// Mortgage estimate from API
+export interface MortgageEstimate {
+  monthlyPayment: number
+  loanAmount: number
+  downPayment: number
+  totalPayment: number
+  interestRate: number
+  loanTerm: number
+  details: Array<{
+    type: string
+    amount: number
+    displayName: string
+  }>
+}
+
+// Agent/Broker information
+export interface AgentInfo {
+  name: string
+  email: string | null
+  phone: string | null
+  photo: string | null
+  license: string | null
+  officeName: string | null
+  officePhone: string | null
+  officePhoto: string | null
+}
+
+// Value estimate
+export interface ValueEstimate {
+  source: string
+  estimate: number
+  estimateHigh: number
+  estimateLow: number
+  date: string
+}
+
+// Property flags
+export interface PropertyFlags {
+  isNewConstruction: boolean | null
+  isForeclosure: boolean | null
+  isNewListing: boolean | null
+  isComingSoon: boolean | null
+  isContingent: boolean | null
+  isPending: boolean | null
+  isPriceReduced: boolean | null
+  isShortSale: boolean | null
+}
+
+// Flood info
+export interface FloodInfo {
+  floodFactorScore: number | null
+  femaZones: string[]
+}
+
+// Enhanced school info
+export interface SchoolInfo {
+  name: string
+  distance_in_miles: number
+  education_levels: string[]
+  rating: number | null
+  parentRating: number | null
+  funding_type: string
+  grades: string[]
+  studentCount: number | null
+  assigned: boolean | null
+}
+
+// Property history with photos
+export interface PropertyHistoryItem {
+  date: string
+  price: number
+  event_name: string
+  source: string | null
+  photos: string[]
+}
+
+// Tax history with breakdown
+export interface TaxHistoryItem {
+  year: number
+  tax: number
+  assessment: {
+    building: number | null
+    land: number | null
+    total: number | null
+  } | null
+}
+
+// Details category
+export interface DetailsCategory {
+  category: string
+  text: string[]
+}
+
 export interface PropertyDetail {
   property_id: string
   listing_id: string
@@ -151,6 +244,7 @@ export interface PropertyDetail {
     fireplace?: boolean
     heating?: string
     cooling?: string
+    text?: string // Full description text
   }
   features?: Array<{
     category: string
@@ -168,7 +262,8 @@ export interface PropertyDetail {
   }>
   location?: {
     neighborhoods?: Array<{ name: string; id: string }>
-    county?: { name: string }
+    county?: { name: string; fips_code?: string }
+    street_view_url?: string
   }
   schools?: Array<{
     name: string
@@ -177,6 +272,24 @@ export interface PropertyDetail {
     rating: number
     funding_type: string
   }>
+  // New rich data fields
+  mortgage?: MortgageEstimate
+  hoa?: {
+    fee: number
+    frequency?: string
+  }
+  agent?: AgentInfo
+  estimates?: ValueEstimate[]
+  flags?: PropertyFlags
+  flood?: FloodInfo
+  details?: DetailsCategory[]
+  property_history?: PropertyHistoryItem[]
+  tax_history_detailed?: TaxHistoryItem[]
+  schools_detailed?: SchoolInfo[]
+  last_sold_price?: number
+  last_sold_date?: string
+  price_per_sqft?: number
+  days_on_market?: number
 }
 
 export interface AutocompleteResult {
@@ -354,10 +467,13 @@ class RealtyAPI {
 
     try {
       const headers = await this.getHeaders()
-      const response = await fetch(`${BASE_URL}${endpoint}`, {
-        method: 'POST',
+      // v3/detail is a GET endpoint with property_id as query parameter
+      const url = new URL(`${BASE_URL}${endpoint}`)
+      url.searchParams.set('property_id', propertyId)
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
         headers,
-        body: JSON.stringify({ property_id: propertyId }),
       })
 
       const duration = Date.now() - startTime
@@ -367,7 +483,7 @@ class RealtyAPI {
         await logApiCall({
           service: 'realty_api',
           endpoint,
-          method: 'POST',
+          method: 'GET',
           status: response.status,
           duration,
           errorMessage: response.status === 404 ? 'Not found' : (errorText || response.statusText),
@@ -381,7 +497,7 @@ class RealtyAPI {
       await logApiCall({
         service: 'realty_api',
         endpoint,
-        method: 'POST',
+        method: 'GET',
         status: 200,
         duration,
       })
@@ -393,6 +509,107 @@ class RealtyAPI {
         return null
       }
 
+      // Extract mortgage data
+      const mortgageData = home.mortgage?.estimate
+      const mortgage: MortgageEstimate | undefined = mortgageData ? {
+        monthlyPayment: mortgageData.monthly_payment || 0,
+        loanAmount: mortgageData.loan_amount || 0,
+        downPayment: mortgageData.down_payment || 0,
+        totalPayment: mortgageData.total_payment || 0,
+        interestRate: mortgageData.average_rate?.rate || 0,
+        loanTerm: mortgageData.average_rate?.loan_type?.term || 30,
+        details: (mortgageData.monthly_payment_details || []).map((d: { type: string; amount: number; display_name: string }) => ({
+          type: d.type,
+          amount: d.amount,
+          displayName: d.display_name,
+        })),
+      } : undefined
+
+      // Extract HOA data
+      const hoa = home.hoa?.fee ? {
+        fee: home.hoa.fee,
+        frequency: 'monthly',
+      } : undefined
+
+      // Extract agent data
+      const advertiser = home.advertisers?.[0]
+      const agent: AgentInfo | undefined = advertiser ? {
+        name: advertiser.name || '',
+        email: advertiser.email || null,
+        phone: advertiser.phones?.[0]?.number || null,
+        photo: advertiser.photo?.href || null,
+        license: advertiser.state_license || null,
+        officeName: advertiser.office?.name || null,
+        officePhone: advertiser.office?.phones?.[0]?.number || null,
+        officePhoto: advertiser.office?.photo?.href || null,
+      } : undefined
+
+      // Extract value estimates
+      const estimates: ValueEstimate[] = (home.estimates?.current_values || []).map((e: { source: { name: string }; estimate: number; estimate_high: number; estimate_low: number; date: string }) => ({
+        source: e.source?.name || 'Unknown',
+        estimate: e.estimate || 0,
+        estimateHigh: e.estimate_high || 0,
+        estimateLow: e.estimate_low || 0,
+        date: e.date || '',
+      }))
+
+      // Extract flags
+      const flags: PropertyFlags | undefined = home.flags ? {
+        isNewConstruction: home.flags.is_new_construction ?? null,
+        isForeclosure: home.flags.is_foreclosure ?? null,
+        isNewListing: home.flags.is_new_listing ?? null,
+        isComingSoon: home.flags.is_coming_soon ?? null,
+        isContingent: home.flags.is_contingent ?? null,
+        isPending: home.flags.is_pending ?? null,
+        isPriceReduced: home.flags.is_price_reduced ?? null,
+        isShortSale: home.flags.is_short_sale ?? null,
+      } : undefined
+
+      // Extract flood info
+      const flood: FloodInfo | undefined = home.local?.flood ? {
+        floodFactorScore: home.local.flood.flood_factor_score ?? null,
+        femaZones: home.local.flood.fema_zone || [],
+      } : undefined
+
+      // Extract detailed property history
+      const propertyHistory: PropertyHistoryItem[] = (home.property_history || []).map((h: { date: string; price: number; event_name: string; source_name?: string; listing?: { photos?: Array<{ href: string }> } }) => ({
+        date: h.date || '',
+        price: h.price || 0,
+        event_name: h.event_name || '',
+        source: h.source_name || null,
+        photos: (h.listing?.photos || []).slice(0, 5).map((p: { href: string }) => p.href),
+      }))
+
+      // Extract detailed tax history
+      const taxHistoryDetailed: TaxHistoryItem[] = (home.tax_history || []).map((t: { year: number; tax: number; assessment?: { building?: number; land?: number; total?: number } }) => ({
+        year: t.year,
+        tax: t.tax || 0,
+        assessment: t.assessment ? {
+          building: t.assessment.building ?? null,
+          land: t.assessment.land ?? null,
+          total: t.assessment.total ?? null,
+        } : null,
+      }))
+
+      // Extract detailed schools
+      const schoolsDetailed: SchoolInfo[] = (home.schools?.schools || home.nearby_schools?.schools || []).map((s: { name: string; distance_in_miles: number; education_levels: string[]; rating?: number; parent_rating?: number; funding_type: string; grades?: string[]; student_count?: number; assigned?: boolean }) => ({
+        name: s.name || '',
+        distance_in_miles: s.distance_in_miles || 0,
+        education_levels: s.education_levels || [],
+        rating: s.rating ?? null,
+        parentRating: s.parent_rating ?? null,
+        funding_type: s.funding_type || '',
+        grades: s.grades || [],
+        studentCount: s.student_count ?? null,
+        assigned: s.assigned ?? null,
+      }))
+
+      // Extract details categories
+      const details: DetailsCategory[] = (home.details || []).map((d: { category: string; text: string[] }) => ({
+        category: d.category || '',
+        text: d.text || [],
+      }))
+
       // Transform to PropertyDetail format
       return {
         property_id: home.property_id,
@@ -400,7 +617,7 @@ class RealtyAPI {
         status: home.status || 'for_sale',
         list_price: home.list_price || 0,
         list_date: home.list_date || '',
-        last_update_date: home.list_date || '',
+        last_update_date: home.last_update_date || home.list_date || '',
         property_type: home.description?.type,
         address: {
           line: home.location?.address?.line || '',
@@ -423,7 +640,31 @@ class RealtyAPI {
           year_built: home.description.year_built,
           type: home.description.type,
           sub_type: home.description.sub_type,
+          stories: home.description.stories,
+          garage: home.description.garage,
+          pool: home.description.pool,
+          text: home.description.text,
         } : undefined,
+        location: {
+          neighborhoods: home.location?.neighborhoods,
+          county: home.location?.county ? { name: home.location.county.name || '', fips_code: home.location.county.fips_code } : undefined,
+          street_view_url: home.location?.street_view_url,
+        },
+        // Rich data fields
+        mortgage,
+        hoa,
+        agent,
+        estimates: estimates.length > 0 ? estimates : undefined,
+        flags,
+        flood,
+        details: details.length > 0 ? details : undefined,
+        property_history: propertyHistory.length > 0 ? propertyHistory : undefined,
+        tax_history_detailed: taxHistoryDetailed.length > 0 ? taxHistoryDetailed : undefined,
+        schools_detailed: schoolsDetailed.length > 0 ? schoolsDetailed : undefined,
+        last_sold_price: home.last_sold_price,
+        last_sold_date: home.last_sold_date,
+        price_per_sqft: home.price_per_sqft,
+        days_on_market: home.days_on_market,
       }
     } catch (error) {
       console.error('Realty API property detail error:', error)

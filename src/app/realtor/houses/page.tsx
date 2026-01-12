@@ -11,6 +11,12 @@ import { useToast } from '@/components/ui/Toast'
 import PageHeader, { BuildingIcon, PlusIcon } from '@/components/ui/PageHeader'
 import AddHouseForClientModal from '@/components/houses/AddHouseForClientModal'
 
+// Convert rdcpix image URLs to high resolution versions
+const getHighResImageUrl = (url: string): string => {
+  if (!url) return url
+  return url.replace(/(-[mb]\d+)s\.jpg$/i, '$1od.jpg')
+}
+
 interface House {
   id: string
   externalId: string
@@ -358,7 +364,7 @@ export default function RealtorHouses() {
               <div className="relative aspect-[16/10] bg-gray-100">
                 {hb.house.images?.[0] ? (
                   <Image
-                    src={hb.house.images[0]}
+                    src={getHighResImageUrl(hb.house.images[0])}
                     alt={hb.house.address}
                     fill
                     className="object-cover"

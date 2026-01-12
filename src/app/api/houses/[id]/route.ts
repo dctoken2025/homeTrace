@@ -104,7 +104,111 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const priceHistory = rawData?.price_history as Array<{ date: string; price: number; event_name: string }> | undefined
     const taxHistory = rawData?.tax_history as Array<{ year: number; tax: number; assessment?: { total: number } }> | undefined
     const schools = rawData?.schools as Array<{ name: string; distance_in_miles: number; education_levels: string[]; rating: number; funding_type: string }> | undefined
-    const location = rawData?.location as { neighborhoods?: Array<{ name: string; id: string }>; county?: { name: string } } | undefined
+    const location = rawData?.location as { neighborhoods?: Array<{ name: string; id: string }>; county?: { name: string; fips_code?: string }; street_view_url?: string } | undefined
+
+    // Extract new rich data fields
+    const mortgage = rawData?.mortgage as { estimate?: { monthly_payment: number; loan_amount: number; down_payment: number; total_payment: number; average_rate?: { rate: number; loan_type?: { term: number } }; monthly_payment_details?: Array<{ type: string; amount: number; display_name: string }> } } | undefined
+    const hoa = rawData?.hoa as { fee: number } | undefined
+    const advertisers = rawData?.advertisers as Array<{ name: string; email?: string; phones?: Array<{ number: string }>; photo?: { href: string }; state_license?: string; office?: { name: string; phones?: Array<{ number: string }>; photo?: { href: string } } }> | undefined
+    const estimates = rawData?.estimates as { current_values?: Array<{ source: { name: string }; estimate: number; estimate_high: number; estimate_low: number; date: string }> } | undefined
+    const flags = rawData?.flags as { is_new_construction?: boolean; is_foreclosure?: boolean; is_new_listing?: boolean; is_coming_soon?: boolean; is_contingent?: boolean; is_pending?: boolean; is_price_reduced?: boolean; is_short_sale?: boolean } | undefined
+    const local = rawData?.local as { flood?: { flood_factor_score?: number; fema_zone?: string[] } } | undefined
+    const details = rawData?.details as Array<{ category: string; text: string[] }> | undefined
+    const propertyHistory = rawData?.property_history as Array<{ date: string; price: number; event_name: string; source_name?: string; listing?: { photos?: Array<{ href: string }> } }> | undefined
+    const taxHistoryDetailed = rawData?.tax_history as Array<{ year: number; tax: number; assessment?: { building?: number; land?: number; total?: number } }> | undefined
+    const nearbySchools = rawData?.nearby_schools as { schools?: Array<{ name: string; distance_in_miles: number; education_levels: string[]; rating?: number; parent_rating?: number; funding_type: string; grades?: string[]; student_count?: number; assigned?: boolean }> } | undefined
+    const schoolsData = rawData?.schools as { schools?: Array<{ name: string; distance_in_miles: number; education_levels: string[]; rating?: number; parent_rating?: number; funding_type: string; grades?: string[]; student_count?: number; assigned?: boolean }> } | undefined
+
+    // Format mortgage data
+    const mortgageData = mortgage?.estimate ? {
+      monthlyPayment: mortgage.estimate.monthly_payment || 0,
+      loanAmount: mortgage.estimate.loan_amount || 0,
+      downPayment: mortgage.estimate.down_payment || 0,
+      totalPayment: mortgage.estimate.total_payment || 0,
+      interestRate: mortgage.estimate.average_rate?.rate || 0,
+      loanTerm: mortgage.estimate.average_rate?.loan_type?.term || 30,
+      details: (mortgage.estimate.monthly_payment_details || []).map(d => ({
+        type: d.type,
+        amount: d.amount,
+        displayName: d.display_name,
+      })),
+    } : null
+
+    // Format agent data
+    const agentData = advertisers?.[0] ? {
+      name: advertisers[0].name || '',
+      email: advertisers[0].email || null,
+      phone: advertisers[0].phones?.[0]?.number || null,
+      photo: advertisers[0].photo?.href || null,
+      license: advertisers[0].state_license || null,
+      officeName: advertisers[0].office?.name || null,
+      officePhone: advertisers[0].office?.phones?.[0]?.number || null,
+      officePhoto: advertisers[0].office?.photo?.href || null,
+    } : null
+
+    // Format estimates data
+    const estimatesData = (estimates?.current_values || []).map(e => ({
+      source: e.source?.name || 'Unknown',
+      estimate: e.estimate || 0,
+      estimateHigh: e.estimate_high || 0,
+      estimateLow: e.estimate_low || 0,
+      date: e.date || '',
+    }))
+
+    // Format flags
+    const flagsData = flags ? {
+      isNewConstruction: flags.is_new_construction ?? null,
+      isForeclosure: flags.is_foreclosure ?? null,
+      isNewListing: flags.is_new_listing ?? null,
+      isComingSoon: flags.is_coming_soon ?? null,
+      isContingent: flags.is_contingent ?? null,
+      isPending: flags.is_pending ?? null,
+      isPriceReduced: flags.is_price_reduced ?? null,
+      isShortSale: flags.is_short_sale ?? null,
+    } : null
+
+    // Format flood data
+    const floodData = local?.flood ? {
+      floodFactorScore: local.flood.flood_factor_score ?? null,
+      femaZones: local.flood.fema_zone || [],
+    } : null
+
+    // Format property history with photos
+    const propertyHistoryData = (propertyHistory || []).map(h => ({
+      date: h.date || '',
+      price: h.price || 0,
+      event_name: h.event_name || '',
+      source: h.source_name || null,
+      photos: (h.listing?.photos || []).slice(0, 5).map(p => p.href),
+    }))
+
+    // Format detailed tax history
+    const taxHistoryDetailedData = (taxHistoryDetailed || []).map(t => ({
+      year: t.year,
+      tax: t.tax || 0,
+      assessment: t.assessment ? {
+        building: t.assessment.building ?? null,
+        land: t.assessment.land ?? null,
+        total: t.assessment.total ?? null,
+      } : null,
+    }))
+
+    // Format detailed schools (combine nearby and assigned)
+    const allSchools = [...(schoolsData?.schools || []), ...(nearbySchools?.schools || [])]
+    const uniqueSchools = allSchools.filter((school, index, self) =>
+      index === self.findIndex(s => s.name === school.name)
+    )
+    const schoolsDetailedData = uniqueSchools.map(s => ({
+      name: s.name || '',
+      distance_in_miles: s.distance_in_miles || 0,
+      education_levels: s.education_levels || [],
+      rating: s.rating ?? null,
+      parentRating: s.parent_rating ?? null,
+      funding_type: s.funding_type || '',
+      grades: s.grades || [],
+      studentCount: s.student_count ?? null,
+      assigned: s.assigned ?? null,
+    }))
 
     return successResponse({
         id: houseBuyer.id,
@@ -131,7 +235,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           listingStatus: houseBuyer.house.listingStatus,
           images: houseBuyer.house.images,
           lastSyncedAt: houseBuyer.house.lastSyncedAt,
-          // Rich data from API
+          // Basic rich data from description
           lotSqft: (description?.lot_sqft as number) ?? null,
           garage: (description?.garage as number) ?? null,
           stories: (description?.stories as number) ?? null,
@@ -141,12 +245,36 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           cooling: (description?.cooling as string) ?? null,
           bathsFull: (description?.baths_full as number) ?? null,
           bathsHalf: (description?.baths_half as number) ?? null,
+          descriptionText: (description?.text as string) ?? null,
+          // Features and history
           features: features ?? [],
+          details: details ?? [],
           priceHistory: priceHistory ?? [],
           taxHistory: taxHistory ?? [],
+          taxHistoryDetailed: taxHistoryDetailedData,
+          propertyHistory: propertyHistoryData,
           schools: schools ?? [],
+          schoolsDetailed: schoolsDetailedData,
+          // Location info
           neighborhood: location?.neighborhoods?.[0]?.name ?? null,
           county: location?.county?.name ?? null,
+          streetViewUrl: location?.street_view_url ?? null,
+          // Financial data
+          mortgage: mortgageData,
+          hoa: hoa ? { fee: hoa.fee, frequency: 'monthly' } : null,
+          // Agent/broker
+          agent: agentData,
+          // Value estimates
+          estimates: estimatesData.length > 0 ? estimatesData : null,
+          // Status flags
+          flags: flagsData,
+          // Local info
+          flood: floodData,
+          // Other
+          lastSoldPrice: (rawData?.last_sold_price as number) ?? null,
+          lastSoldDate: (rawData?.last_sold_date as string) ?? null,
+          pricePerSqft: (rawData?.price_per_sqft as number) ?? null,
+          daysOnMarket: (rawData?.days_on_market as number) ?? null,
         },
         buyer: houseBuyer.buyer,
         addedByRealtor: houseBuyer.addedByRealtor,
@@ -277,14 +405,16 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return errorResponse(ErrorCode.NOT_FOUND, 'House not found')
     }
 
-    // Check access permissions - only buyer who owns or admin can delete
+    // Check access permissions - buyer, admin, or the realtor who added can delete
     const canDelete =
-      session.role === 'ADMIN' || houseBuyer.buyerId === session.userId
+      session.role === 'ADMIN' ||
+      houseBuyer.buyerId === session.userId ||
+      houseBuyer.addedByRealtorId === session.userId
 
     if (!canDelete) {
       return errorResponse(
           ErrorCode.FORBIDDEN,
-          'Only the buyer or admin can remove this house'
+          'Only the buyer, admin, or the realtor who added this house can remove it'
         )
     }
 
