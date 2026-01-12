@@ -10,6 +10,7 @@ import { ConfirmModal } from '@/components/ui/Modal'
 import { NetworkError, NotFoundError } from '@/components/ui/ErrorState'
 import { useToast } from '@/components/ui/Toast'
 import { formatPrice, getStatusLabel, getStatusColor, formatSqft } from '@/lib/format-utils'
+import SuggestVisitModal from '@/components/realtor/SuggestVisitModal'
 
 // Convert rdcpix image URLs to high resolution versions
 // API returns URLs with size suffix: s=small, m=medium, l=large, od=original
@@ -255,6 +256,7 @@ export default function RealtorHouseDetailPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [removeModalOpen, setRemoveModalOpen] = useState(false)
   const [isRemoving, setIsRemoving] = useState(false)
+  const [suggestVisitModalOpen, setSuggestVisitModalOpen] = useState(false)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [expandedDetails, setExpandedDetails] = useState<Set<number>>(new Set())
 
@@ -1091,6 +1093,15 @@ export default function RealtorHouseDetailPage() {
             {/* Actions */}
             <div className="space-y-3">
               <Button
+                fullWidth
+                onClick={() => setSuggestVisitModalOpen(true)}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Suggest Visit
+              </Button>
+              <Button
                 variant="danger"
                 fullWidth
                 onClick={() => setRemoveModalOpen(true)}
@@ -1287,6 +1298,29 @@ export default function RealtorHouseDetailPage() {
         confirmLabel="Remove"
         variant="danger"
         isLoading={isRemoving}
+      />
+
+      {/* Suggest Visit Modal */}
+      <SuggestVisitModal
+        isOpen={suggestVisitModalOpen}
+        onClose={() => setSuggestVisitModalOpen(false)}
+        onSuccess={() => {
+          success('Visit suggestion sent!')
+        }}
+        houseBuyerId={houseBuyerId}
+        house={{
+          id: house.id,
+          address: house.address,
+          city: house.city,
+          state: house.state,
+          images: house.images,
+          price: house.price,
+        }}
+        buyer={{
+          id: buyer.id,
+          name: buyer.name,
+          email: buyer.email,
+        }}
       />
     </div>
   )

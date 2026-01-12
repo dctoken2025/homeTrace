@@ -38,6 +38,13 @@ enum InviteStatus {
   EXPIRED
 }
 
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
 enum OverallImpression {
   LOVED
   LIKED
@@ -92,6 +99,10 @@ model User {
   invitesSent           Invite[]
   toursCreated          Tour[]
 
+  // Relations - Visit Suggestions
+  suggestionsReceived   VisitSuggestion[]  @relation("SuggestionsReceived")
+  suggestionsSent       VisitSuggestion[]  @relation("SuggestionsSent")
+
   // Relations - Sessions
   sessions              Session[]
 
@@ -126,9 +137,10 @@ model House {
   deletedAt       DateTime?
 
   // Relations
-  houseBuyers     HouseBuyer[]
-  visits          Visit[]
-  tourStops       TourStop[]
+  houseBuyers        HouseBuyer[]
+  visits             Visit[]
+  tourStops          TourStop[]
+  visitSuggestions   VisitSuggestion[]
 
   @@index([externalId])
   @@index([city, state])
@@ -179,6 +191,7 @@ model Visit {
   buyer             User            @relation(fields: [buyerId], references: [id])
   recordings        Recording[]
   tourStop          TourStop?
+  originSuggestion  VisitSuggestion?
 
   @@index([buyerId])
   @@index([houseId])
@@ -444,6 +457,37 @@ model Session {
   @@index([refreshToken])
   @@index([expiresAt])
   @@index([isRevoked])
+}
+
+// ==================== VISIT SUGGESTIONS ====================
+
+model VisitSuggestion {
+  id                   String            @id @default(cuid())
+  houseId              String
+  buyerId              String
+  suggestedByRealtorId String
+  status               SuggestionStatus  @default(PENDING)
+  suggestedAt          DateTime          // Data/hora sugerida para a visita
+  message              String?           // Mensagem opcional do realtor
+  acceptedAt           DateTime?
+  rejectedAt           DateTime?
+  rejectionReason      String?
+  resultingVisitId     String?           @unique
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  deletedAt            DateTime?
+
+  // Relations
+  house                House             @relation(fields: [houseId], references: [id])
+  buyer                User              @relation("SuggestionsReceived", fields: [buyerId], references: [id])
+  suggestedByRealtor   User              @relation("SuggestionsSent", fields: [suggestedByRealtorId], references: [id])
+  resultingVisit       Visit?            @relation(fields: [resultingVisitId], references: [id])
+
+  @@index([buyerId])
+  @@index([suggestedByRealtorId])
+  @@index([status])
+  @@index([suggestedAt])
+  @@index([deletedAt])
 }
 
 // ==================== SYSTEM CONFIGURATION ====================

@@ -6,6 +6,13 @@ import Image from 'next/image'
 import { IconButton } from '@/components/ui/Button'
 import { formatPrice, getStatusLabel, getStatusColor, formatSqft } from '@/lib/format-utils'
 
+// Transform low-res rdcpix URLs to high-res versions
+const getHighResImageUrl = (url: string): string => {
+  if (!url) return url
+  // Convert URLs like image-m640s.jpg to image-m640od.jpg (original quality)
+  return url.replace(/(-[mb]\d+)s\.jpg$/i, '$1od.jpg')
+}
+
 interface House {
   id: string
   externalId?: string
@@ -97,11 +104,13 @@ export default function HouseCard({
       <div className="relative aspect-[16/10] bg-gray-100">
         {hasImage ? (
           <Image
-            src={photoUrl}
+            src={getHighResImageUrl(photoUrl)}
             alt={house.address}
             fill
             className="object-cover"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            quality={90}
+            unoptimized
             onError={() => setImageError(true)}
           />
         ) : (
@@ -311,11 +320,13 @@ export function HouseCardCompact({
       <div className="relative w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
         {hasImage ? (
           <Image
-            src={photoUrl}
+            src={getHighResImageUrl(photoUrl)}
             alt={house.address}
             fill
             className="object-cover"
             sizes="96px"
+            quality={90}
+            unoptimized
             onError={() => setImageError(true)}
           />
         ) : (

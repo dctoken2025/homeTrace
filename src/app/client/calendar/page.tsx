@@ -16,6 +16,33 @@ interface House {
   address: string
   city: string
   state: string
+  images?: string[]
+  price?: number
+}
+
+interface VisitSuggestion {
+  id: string
+  status: string
+  suggestedAt: string
+  message: string | null
+  createdAt: string
+  isExpired: boolean
+  house: {
+    id: string
+    address: string
+    city: string
+    state: string
+    zipCode: string
+    price: number | null
+    bedrooms: number | null
+    bathrooms: number | null
+    images: string[]
+  }
+  suggestedByRealtor: {
+    id: string
+    name: string
+    email: string
+  }
 }
 
 interface VisitStats {
@@ -32,6 +59,8 @@ export default function CalendarPage() {
 
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [stats, setStats] = useState<VisitStats | null>(null)
+  const [suggestions, setSuggestions] = useState<VisitSuggestion[]>([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -78,6 +107,27 @@ export default function CalendarPage() {
     }
   }, [])
 
+  // Fetch pending suggestions
+  const fetchSuggestions = useCallback(async () => {
+    setLoadingSuggestions(true)
+    try {
+      const response = await fetch('/api/visits/suggestions?status=PENDING')
+      const data = await response.json()
+
+      if (response.ok) {
+        // Filter out expired suggestions
+        const pendingSuggestions = (data.data?.items || []).filter(
+          (s: VisitSuggestion) => !s.isExpired && s.status === 'PENDING'
+        )
+        setSuggestions(pendingSuggestions)
+      }
+    } catch (err) {
+      console.error('Fetch suggestions error:', err)
+    } finally {
+      setLoadingSuggestions(false)
+    }
+  }, [])
+
   // Fetch houses for new visit modal
   const fetchHouses = useCallback(async () => {
     setLoadingHouses(true)
@@ -99,7 +149,8 @@ export default function CalendarPage() {
   useEffect(() => {
     const now = new Date()
     fetchEvents(startOfMonth(now), endOfMonth(now))
-  }, [fetchEvents])
+    fetchSuggestions()
+  }, [fetchEvents, fetchSuggestions])
 
   // Handle range change
   const handleRangeChange = useCallback(
@@ -208,6 +259,52 @@ export default function CalendarPage() {
     router.push(`/client/house/${houseId}/visit?visitId=${visitId}`)
   }
 
+  // Handle accept suggestion
+  const handleAcceptSuggestion = async (suggestionId: string) => {
+    try {
+      const response = await fetch(`/api/visits/suggestions/${suggestionId}/accept`, {
+        method: 'POST',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to accept suggestion')
+      }
+
+      success('Visit Scheduled', 'The visit has been added to your calendar!')
+
+      // Refresh calendar and suggestions
+      const now = new Date()
+      fetchEvents(startOfMonth(now), endOfMonth(now))
+      fetchSuggestions()
+    } catch (err) {
+      showError('Error', err instanceof Error ? err.message : 'Failed to accept suggestion')
+    }
+  }
+
+  // Handle reject suggestion
+  const handleRejectSuggestion = async (suggestionId: string, reason?: string) => {
+    try {
+      const response = await fetch(`/api/visits/suggestions/${suggestionId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to decline suggestion')
+      }
+
+      success('Suggestion Declined', 'The realtor will be notified.')
+      fetchSuggestions()
+    } catch (err) {
+      showError('Error', err instanceof Error ? err.message : 'Failed to decline suggestion')
+    }
+  }
+
   if (error) {
     return (
       <div className="p-6">
@@ -244,6 +341,112 @@ export default function CalendarPage() {
           },
         }}
       />
+
+      {/* Pending Suggestions */}
+      {!loadingSuggestions && suggestions.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Pending Visit Suggestions</h2>
+              <p className="text-sm text-gray-600">Your realtor has suggested {suggestions.length} visit{suggestions.length !== 1 ? 's' : ''} for you</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {suggestions.map((suggestion) => (
+              <div key={suggestion.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                <div className="flex gap-4">
+                  {/* House Image */}
+                  {suggestion.house.images?.[0] && (
+                    <img
+                      src={suggestion.house.images[0]}
+                      alt={suggestion.house.address}
+                      className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
+                    />
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    {/* House Info */}
+                    <h3 className="font-medium text-gray-900 truncate">{suggestion.house.address}</h3>
+                    <p className="text-sm text-gray-500">{suggestion.house.city}, {suggestion.house.state}</p>
+
+                    {/* Price and Details */}
+                    <div className="flex items-center gap-2 mt-1 text-sm">
+                      {suggestion.house.price && (
+                        <span className="font-semibold text-[#006AFF]">
+                          ${suggestion.house.price.toLocaleString()}
+                        </span>
+                      )}
+                      {suggestion.house.bedrooms && (
+                        <>
+                          <span className="text-gray-300">•</span>
+                          <span className="text-gray-600">{suggestion.house.bedrooms} bd</span>
+                        </>
+                      )}
+                      {suggestion.house.bathrooms && (
+                        <>
+                          <span className="text-gray-300">•</span>
+                          <span className="text-gray-600">{suggestion.house.bathrooms} ba</span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Suggested Date */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-sm font-medium text-gray-700">
+                        {format(new Date(suggestion.suggestedAt), 'PPP')} at {format(new Date(suggestion.suggestedAt), 'p')}
+                      </span>
+                    </div>
+
+                    {/* Realtor Info */}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Suggested by <span className="font-medium">{suggestion.suggestedByRealtor.name}</span>
+                    </p>
+
+                    {/* Message */}
+                    {suggestion.message && (
+                      <div className="mt-2 p-2 bg-gray-50 rounded text-sm text-gray-600 italic">
+                        &ldquo;{suggestion.message}&rdquo;
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex flex-col gap-2 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      onClick={() => handleAcceptSuggestion(suggestion.id)}
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleRejectSuggestion(suggestion.id)}
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Decline
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Calendar */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 relative">
