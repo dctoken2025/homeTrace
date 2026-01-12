@@ -115,11 +115,12 @@ export default function RealtorClients() {
     fetchPendingInvites();
   };
 
-  const handleRevokeInvite = async (inviteId: string) => {
-    if (!confirm('Are you sure you want to revoke this invitation?')) return;
+  const handleRevokeInvite = async () => {
+    if (!revokeInviteId) return;
 
+    setIsRevoking(true);
     try {
-      const response = await fetch(`/api/invites/${inviteId}`, {
+      const response = await fetch(`/api/invites/${revokeInviteId}`, {
         method: 'DELETE',
       });
       if (response.ok) {
@@ -127,6 +128,9 @@ export default function RealtorClients() {
       }
     } catch (err) {
       console.error('Failed to revoke invite:', err);
+    } finally {
+      setIsRevoking(false);
+      setRevokeInviteId(null);
     }
   };
 
@@ -216,7 +220,7 @@ export default function RealtorClients() {
                     variant="ghost"
                     size="sm"
                     className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => handleRevokeInvite(invite.id)}
+                    onClick={() => setRevokeInviteId(invite.id)}
                   >
                     Revoke
                   </Button>
@@ -351,6 +355,18 @@ export default function RealtorClients() {
           setSelectedClientId(null);
         }}
         clientId={selectedClientId}
+      />
+
+      <ConfirmModal
+        isOpen={!!revokeInviteId}
+        onClose={() => setRevokeInviteId(null)}
+        onConfirm={handleRevokeInvite}
+        title="Revoke Invitation"
+        message="Are you sure you want to revoke this invitation? The invite link will no longer work."
+        confirmLabel="Revoke"
+        cancelLabel="Cancel"
+        variant="danger"
+        isLoading={isRevoking}
       />
     </div>
   );
