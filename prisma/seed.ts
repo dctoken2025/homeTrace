@@ -3,12 +3,29 @@ import { PrismaClient, UserRole } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 import * as bcrypt from 'bcryptjs'
+import * as crypto from 'crypto'
 
 // Initialize Prisma with pg adapter for Prisma 7
 const connectionString = process.env.DATABASE_URL!
 const pool = new Pool({ connectionString })
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
+
+// Encryption helper for system configs
+const getEncryptionKey = (): Buffer => {
+  const secret = process.env.JWT_SECRET || 'default-encryption-key-32-chars!'
+  return crypto.scryptSync(secret, 'salt', 32)
+}
+
+const encrypt = (text: string): string => {
+  const key = getEncryptionKey()
+  const iv = crypto.randomBytes(16)
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
+  let encrypted = cipher.update(text, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+  const authTag = cipher.getAuthTag()
+  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`
+}
 
 async function main() {
   console.log('Starting database seed...')
@@ -44,6 +61,39 @@ async function main() {
   })
 
   console.log(`Admin user created/updated: ${admin.email}`)
+
+  // Initialize system configurations from environment variables
+  console.log('Initializing system configurations...')
+
+  const configsToInit = [
+    { key: 'ANTHROPIC_API_KEY', envKey: 'ANTHROPIC_API_KEY', description: 'Anthropic API key for Claude AI (chat, analysis, reports)', isSecret: true },
+    { key: 'RESEND_API_KEY', envKey: 'RESEND_API_KEY', description: 'Resend API key for sending emails', isSecret: true },
+    { key: 'RAPIDAPI_KEY', envKey: 'RAPIDAPI_KEY', description: 'RapidAPI key for Realty in US property API', isSecret: true },
+    { key: 'STORAGE_PATH', envKey: 'STORAGE_PATH', description: 'Path for file storage', isSecret: false },
+    { key: 'REALTY_API_HOST', envKey: 'REALTY_API_HOST', description: 'Realty API host URL', isSecret: false },
+  ]
+
+  for (const config of configsToInit) {
+    const envValue = process.env[config.envKey]
+    if (envValue) {
+      const existing = await prisma.systemConfig.findUnique({ where: { key: config.key } })
+      if (!existing) {
+        await prisma.systemConfig.create({
+          data: {
+            key: config.key,
+            value: config.isSecret ? encrypt(envValue) : envValue,
+            description: config.description,
+            isSecret: config.isSecret,
+          },
+        })
+        console.log(`  - ${config.key}: migrated from environment`)
+      } else {
+        console.log(`  - ${config.key}: already exists in database`)
+      }
+    } else {
+      console.log(`  - ${config.key}: not set in environment`)
+    }
+  }
 
   // Create demo data for development
   if (process.env.NODE_ENV === 'development') {
@@ -112,6 +162,44 @@ async function main() {
       },
     })
     console.log('Demo Privacy settings created')
+
+    // Create demo DreamHouseProfile for buyer
+    await prisma.dreamHouseProfile.upsert({
+      where: { buyerId: buyer.id },
+      update: {},
+      create: {
+        buyerId: buyer.id,
+        isComplete: true,
+        profile: {
+          budget: { min: 350000, max: 550000 },
+          locations: ['Austin, TX', 'Round Rock, TX'],
+          bedrooms: { min: 3 },
+          bathrooms: { min: 2 },
+          sqft: { min: 1500, max: 2500 },
+          propertyTypes: ['Single Family', 'Townhouse'],
+          mustHaveFeatures: ['Garage', 'Backyard', 'Modern Kitchen'],
+          niceToHaveFeatures: ['Pool', 'Home Office', 'Smart Home'],
+          dealBreakers: ['No HOA restrictions', 'Not on busy road'],
+          lifestyle: 'Young professional couple, work from home 3 days/week, enjoy hosting friends',
+          moveInTimeline: '3-6 months',
+          additionalNotes: 'Looking for a home with good natural light and open floor plan. Prefer quiet neighborhood but close to restaurants.',
+          aiGeneratedSummary: 'Tech-savvy couple seeking modern 3+ bedroom home in Austin area. Budget-conscious but prioritizing quality of life features. Key priorities: work-from-home space, entertaining areas, and low-maintenance outdoor space.',
+        },
+        trainingChats: [
+          {
+            role: 'user',
+            content: 'I am looking for a 3-bedroom home in Austin with a budget of around $450,000.',
+            timestamp: new Date().toISOString(),
+          },
+          {
+            role: 'assistant',
+            content: 'Great! Austin is a wonderful area. What features are most important to you in your new home?',
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      },
+    })
+    console.log('Demo DreamHouseProfile created')
 
     // Create demo houses
     const houses = [
