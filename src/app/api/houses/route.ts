@@ -11,6 +11,7 @@ import {
 } from '@/lib/api-response'
 import { getSessionUser } from '@/lib/auth-session'
 import { realtyAPI, transformPropertyToHouse } from '@/lib/realty-api'
+import { geocodeAddress } from '@/lib/geocoding'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 
@@ -297,6 +298,14 @@ export async function POST(request: NextRequest) {
 
     if (!house) {
       if (propertyData) {
+        // Try to geocode the address first
+        const geocodeResult = await geocodeAddress(
+          propertyData.address,
+          propertyData.city,
+          propertyData.state,
+          propertyData.zipCode
+        )
+
         // Create house with basic data from search results (fast)
         house = await prisma.house.create({
           data: {
@@ -305,8 +314,8 @@ export async function POST(request: NextRequest) {
             city: propertyData.city,
             state: propertyData.state,
             zipCode: propertyData.zipCode,
-            latitude: null,
-            longitude: null,
+            latitude: geocodeResult?.latitude ?? null,
+            longitude: geocodeResult?.longitude ?? null,
             price: propertyData.price,
             bedrooms: propertyData.bedrooms ?? null,
             bathrooms: propertyData.bathrooms ?? null,
@@ -318,6 +327,13 @@ export async function POST(request: NextRequest) {
             images: propertyData.image ? [propertyData.image] : [],
           },
         })
+
+        if (geocodeResult) {
+          console.log(`House ${house.id} geocoded via ${geocodeResult.source}: ${geocodeResult.latitude}, ${geocodeResult.longitude}`)
+        } else {
+          console.warn(`House ${house.id} could not be geocoded - route optimization will be unavailable`)
+        }
+
         needsDetailSync = true // Flag to sync rich data in background
       } else {
         // No search data provided - must fetch from API

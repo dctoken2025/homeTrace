@@ -5,6 +5,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import PageHeader, { UsersIcon, PlusIcon, LinkIcon } from '@/components/ui/PageHeader';
+import { ConfirmModal } from '@/components/ui/Modal';
 import InviteClientModal from '@/components/realtor/InviteClientModal';
 import LinkClientModal from '@/components/realtor/LinkClientModal';
 import ClientDetailModal from '@/components/realtor/ClientDetailModal';
@@ -62,6 +63,8 @@ export default function RealtorClients() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [inviteInitialEmail, setInviteInitialEmail] = useState('');
+  const [revokeInviteId, setRevokeInviteId] = useState<string | null>(null);
+  const [isRevoking, setIsRevoking] = useState(false);
 
   const fetchClients = useCallback(async () => {
     try {

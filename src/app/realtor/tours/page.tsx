@@ -116,13 +116,20 @@ export default function RealtorTours() {
     setError(null);
 
     try {
+      // Convert datetime-local format to ISO 8601 with timezone
+      let scheduledDateISO: string | undefined;
+      if (formData.scheduledDate) {
+        const date = new Date(formData.scheduledDate);
+        scheduledDateISO = date.toISOString();
+      }
+
       const response = await fetch('/api/tours', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name,
           buyerId: formData.buyerId || undefined,
-          scheduledDate: formData.scheduledDate || undefined,
+          scheduledDate: scheduledDateISO,
           notes: formData.notes || undefined,
         }),
       });

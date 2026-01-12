@@ -57,6 +57,28 @@ interface DashboardData {
   onboarding: OnboardingStats
 }
 
+interface VisitSuggestion {
+  id: string
+  status: string
+  suggestedAt: string
+  message: string | null
+  isExpired: boolean
+  house: {
+    id: string
+    address: string
+    city: string
+    state: string
+    price: number | null
+    bedrooms: number | null
+    bathrooms: number | null
+    images: string[]
+  }
+  suggestedByRealtor: {
+    id: string
+    name: string
+  }
+}
+
 const IMPRESSION_EMOJIS: Record<string, string> = {
   LOVED: '❤️',
   LIKED: '👍',
@@ -69,6 +91,24 @@ export default function ClientDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [suggestions, setSuggestions] = useState<VisitSuggestion[]>([])
+
+  const fetchSuggestions = useCallback(async () => {
+    try {
+      const response = await fetch('/api/visits/suggestions?status=PENDING')
+      const result = await response.json()
+
+      if (response.ok) {
+        const suggestionsArray = result.data?.items || result.data || []
+        const pendingSuggestions = suggestionsArray.filter(
+          (s: VisitSuggestion) => !s.isExpired && s.status === 'PENDING'
+        )
+        setSuggestions(pendingSuggestions)
+      }
+    } catch (err) {
+      console.error('Fetch suggestions error:', err)
+    }
+  }, [])
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -97,7 +137,8 @@ export default function ClientDashboard() {
 
   useEffect(() => {
     fetchDashboard()
-  }, [fetchDashboard])
+    fetchSuggestions()
+  }, [fetchDashboard, fetchSuggestions])
 
   // Loading state
   if (loading) {
@@ -208,6 +249,57 @@ export default function ClientDashboard() {
 
       {/* Getting Started Checklist */}
       <NextStepsChecklist role="BUYER" stats={onboarding} />
+
+      {/* Pending Visit Suggestions */}
+      {suggestions.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-4 sm:p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Visit Suggestions</h2>
+              <p className="text-sm text-gray-600">Your realtor suggested {suggestions.length} visit{suggestions.length !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {suggestions.slice(0, 3).map((suggestion) => (
+              <div key={suggestion.id} className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+                <div className="flex gap-3 sm:gap-4">
+                  {suggestion.house.images?.[0] && (
+                    <img
+                      src={suggestion.house.images[0]}
+                      alt={suggestion.house.address}
+                      className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-gray-900 truncate text-sm sm:text-base">{suggestion.house.address}</h3>
+                    <p className="text-xs sm:text-sm text-gray-500">{suggestion.house.city}, {suggestion.house.state}</p>
+                    <div className="flex items-center gap-2 mt-1 text-xs sm:text-sm">
+                      <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="font-medium text-gray-700">
+                        {format(parseISO(suggestion.suggestedAt), 'MMM d')} at {format(parseISO(suggestion.suggestedAt), 'h:mm a')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Link href="/client/calendar" className="block mt-4">
+            <Button fullWidth variant="primary">
+              View in Calendar
+            </Button>
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         {/* Upcoming Visits */}

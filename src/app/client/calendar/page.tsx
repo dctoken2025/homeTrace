@@ -116,7 +116,8 @@ export default function CalendarPage() {
 
       if (response.ok) {
         // Filter out expired suggestions
-        const pendingSuggestions = (data.data?.items || []).filter(
+        const suggestionsArray = data.data?.items || data.data || []
+        const pendingSuggestions = suggestionsArray.filter(
           (s: VisitSuggestion) => !s.isExpired && s.status === 'PENDING'
         )
         setSuggestions(pendingSuggestions)
