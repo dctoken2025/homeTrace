@@ -153,7 +153,7 @@ export async function sendInviteEmail(
   inviterName: string,
   inviteToken: string
 ): Promise<EmailResult> {
-  const inviteUrl = `${APP_URL}/invite/${inviteToken}`
+  const inviteUrl = `${APP_URL}/accept-invite?token=${inviteToken}`
 
   const html = `
     <!DOCTYPE html>
