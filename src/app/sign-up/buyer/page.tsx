@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Suspense } from 'react';
 import { FormInput } from '@/components/ui/FormInput';
 import { emailSchema, passwordSchema, nameSchema } from '@/lib/validations';
 
@@ -20,8 +21,10 @@ const buyerSignUpSchema = z.object({
 
 type BuyerSignUpFormData = z.infer<typeof buyerSignUpSchema>;
 
-export default function BuyerSignUpPage() {
+function BuyerSignUpForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get('invite');
 
   const {
     register,
@@ -55,6 +58,25 @@ export default function BuyerSignUpPage() {
           message: result.error?.message || 'Failed to create account',
         });
         return;
+      }
+
+      // If there's an invite token, accept the invite after registration
+      if (inviteToken) {
+        try {
+          const acceptResponse = await fetch('/api/invites/accept', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ token: inviteToken }),
+          });
+
+          if (!acceptResponse.ok) {
+            // Log but don't fail - user is registered, they can accept later
+            console.warn('Failed to auto-accept invite after registration');
+          }
+        } catch (err) {
+          console.warn('Error accepting invite:', err);
+        }
       }
 
       router.push('/client');
@@ -274,5 +296,17 @@ export default function BuyerSignUpPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function BuyerSignUpPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(to bottom right, #E3F2FD, #BBDEFB, #E3F2FD)' }}>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#006AFF]"></div>
+      </div>
+    }>
+      <BuyerSignUpForm />
+    </Suspense>
   );
 }

@@ -85,7 +85,7 @@ export default function RealtorClients() {
       const response = await fetch('/api/invites?status=PENDING');
       if (response.ok) {
         const data = await response.json();
-        setPendingInvites(data.data?.invites || []);
+        setPendingInvites(data.data || []);
       }
     } catch (err) {
       console.error('Failed to fetch pending invites:', err);

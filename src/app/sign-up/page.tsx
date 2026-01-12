@@ -1,8 +1,17 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
-export default function SignUpSelectPage() {
+function SignUpSelectContent() {
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get('invite');
+
+  // Build URLs with invite token if present
+  const buyerUrl = inviteToken ? `/sign-up/buyer?invite=${inviteToken}` : '/sign-up/buyer';
+  const realtorUrl = '/sign-up/realtor';
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(to bottom right, #E3F2FD, #BBDEFB, #E3F2FD)' }}>
       {/* Logo */}
@@ -28,7 +37,7 @@ export default function SignUpSelectPage() {
       {/* Cards */}
       <div className="grid md:grid-cols-2 gap-6 w-full max-w-4xl">
         {/* Home Buyer Card */}
-        <Link href="/sign-up/buyer" className="group">
+        <Link href={buyerUrl} className="group">
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all p-8 border-2 border-transparent h-full" style={{ ['--hover-border' as string]: '#006AFF' }} onMouseEnter={(e) => e.currentTarget.style.borderColor = '#006AFF'} onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}>
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-colors" style={{ background: '#E3F2FD' }}>
               <span className="text-4xl">🏠</span>
@@ -62,7 +71,7 @@ export default function SignUpSelectPage() {
         </Link>
 
         {/* Realtor Card */}
-        <Link href="/sign-up/realtor" className="group">
+        <Link href={realtorUrl} className="group">
           <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all p-8 border-2 border-transparent h-full" onMouseEnter={(e) => e.currentTarget.style.borderColor = '#0D47A1'} onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}>
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-colors" style={{ background: '#BBDEFB' }}>
               <span className="text-4xl">💼</span>
@@ -104,5 +113,17 @@ export default function SignUpSelectPage() {
         </Link>
       </p>
     </div>
+  );
+}
+
+export default function SignUpSelectPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(to bottom right, #E3F2FD, #BBDEFB, #E3F2FD)' }}>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#006AFF]"></div>
+      </div>
+    }>
+      <SignUpSelectContent />
+    </Suspense>
   );
 }
