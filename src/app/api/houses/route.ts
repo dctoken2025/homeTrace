@@ -316,7 +316,6 @@ export async function POST(request: NextRequest) {
             listingStatus: propertyData.status || 'for_sale',
             lastSyncedAt: new Date(),
             images: propertyData.image ? [propertyData.image] : [],
-            rawApiData: null, // Will be populated by background sync
           },
         })
         needsDetailSync = true // Flag to sync rich data in background
@@ -358,15 +357,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Background sync for rich property details (non-blocking)
-    if (needsDetailSync && house) {
+    if (needsDetailSync && house && house.externalId) {
       const houseId = house.id
       const externalId = house.externalId
 
       // Fire and forget - don't await
-      (async () => {
+      ;(async () => {
         try {
-          if (!externalId) return
-
           const propertyDetail = await realtyAPI.getPropertyDetail(externalId)
           if (!propertyDetail) return
 

@@ -101,9 +101,9 @@ export async function POST(
         }
 
         try {
-          // Test with a simple autocomplete request
+          // Test with a simple autocomplete request (v2 endpoint)
           const response = await fetch(
-            'https://realty-in-us.p.rapidapi.com/auto-complete?input=new%20york',
+            'https://realty-in-us.p.rapidapi.com/locations/v2/auto-complete?input=Austin',
             {
               headers: {
                 'X-RapidAPI-Key': apiKey,
