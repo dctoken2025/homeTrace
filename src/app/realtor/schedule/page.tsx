@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Card from '@/components/ui/Card'
 import { NetworkError } from '@/components/ui/ErrorState'
+import PageHeader, { CalendarIcon } from '@/components/ui/PageHeader'
 import { format, parseISO, startOfMonth, endOfMonth, addMonths } from 'date-fns'
 
 interface House {
@@ -121,14 +122,18 @@ export default function RealtorSchedule() {
     }
   }
 
+  const scheduledCount = visits.filter(v => v.status === 'SCHEDULED').length
+  const completedCount = visits.filter(v => v.status === 'COMPLETED').length
+
   // Loading state
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Visit Schedule</h1>
-          <p className="text-gray-600">Manage your clients' scheduled house visits</p>
-        </div>
+      <div className="space-y-6">
+        <PageHeader
+          title="Visit Schedule"
+          subtitle="Manage your clients' scheduled house visits"
+          icon={<CalendarIcon />}
+        />
         <div className="space-y-6">
           {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i}>
@@ -149,21 +154,32 @@ export default function RealtorSchedule() {
   // Error state
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="space-y-6">
+        <PageHeader
+          title="Visit Schedule"
+          subtitle="Manage your clients' scheduled house visits"
+          icon={<CalendarIcon />}
+        />
         <NetworkError onRetry={fetchVisits} />
       </div>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Visit Schedule</h1>
-        <p className="text-gray-600">Manage your clients' scheduled house visits</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Visit Schedule"
+        subtitle="Manage your clients' scheduled house visits"
+        icon={<CalendarIcon />}
+        stats={[
+          { label: 'Scheduled', value: scheduledCount },
+          { label: 'Completed', value: completedCount },
+          { label: 'Total', value: visits.length },
+        ]}
+      />
 
       {sortedDates.length === 0 ? (
-        <Card className="text-center py-12">
+        <Card className="text-center py-12 mt-0">
           <svg
             className="w-16 h-16 mx-auto mb-4 text-gray-300"
             fill="none"

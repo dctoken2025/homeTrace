@@ -8,7 +8,8 @@ import Card from '@/components/ui/Card'
 import { SearchInput, Select } from '@/components/ui/Form'
 import { NetworkError } from '@/components/ui/ErrorState'
 import { useToast } from '@/components/ui/Toast'
-import Modal from '@/components/ui/Modal'
+import PageHeader, { BuildingIcon, PlusIcon } from '@/components/ui/PageHeader'
+import AddHouseForClientModal from '@/components/houses/AddHouseForClientModal'
 
 interface House {
   id: string
@@ -99,8 +100,6 @@ export default function RealtorHouses() {
 
   // Add house modal
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [propertyUrl, setPropertyUrl] = useState('')
-  const [selectedClientId, setSelectedClientId] = useState('')
   const [isAdding, setIsAdding] = useState(false)
 
   // Pagination
@@ -128,9 +127,9 @@ export default function RealtorHouses() {
         throw new Error(data.error?.message || 'Failed to fetch houses')
       }
 
-      setHouses(data.data.items)
-      setTotalPages(data.data.pagination.totalPages)
-      setTotal(data.data.pagination.total)
+      setHouses(data.data || [])
+      setTotalPages(data.meta?.totalPages || 1)
+      setTotal(data.meta?.total || 0)
     } catch (err) {
       console.error('Fetch houses error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load houses')
@@ -142,11 +141,18 @@ export default function RealtorHouses() {
   // Fetch clients for the add modal
   const fetchClients = useCallback(async () => {
     try {
-      const response = await fetch('/api/clients')
+      const response = await fetch('/api/clients', { credentials: 'include' })
       const data = await response.json()
 
       if (response.ok) {
-        setClients(data.data.items || [])
+        // Transform the response - extract buyer from each connection
+        // API returns { success, data: [...], meta } - array is directly in data.data
+        const clientsList = (data.data || []).map((item: { buyer: Client }) => ({
+          id: item.buyer.id,
+          name: item.buyer.name,
+          email: item.buyer.email,
+        }))
+        setClients(clientsList)
       }
     } catch (err) {
       console.error('Fetch clients error:', err)
@@ -169,64 +175,48 @@ export default function RealtorHouses() {
     return true
   })
 
-  // Extract property ID from URL
-  const extractPropertyId = (url: string): string | null => {
-    // Handle various URL formats
-    const patterns = [
-      /zpid[_=](\d+)/i,
-      /\/(\d+)_zpid/i,
-      /property\/(\d+)/i,
-      /homedetails\/[^/]+\/(\d+)_zpid/i,
-    ]
-
-    for (const pattern of patterns) {
-      const match = url.match(pattern)
-      if (match) return match[1]
-    }
-
-    // If it's just a number, use it directly
-    if (/^\d+$/.test(url.trim())) {
-      return url.trim()
-    }
-
-    return null
-  }
-
   // Handle add house
-  const handleAddHouse = async () => {
-    if (!propertyUrl || !selectedClientId) {
-      showError('Please fill all fields')
-      return
-    }
-
-    const propertyId = extractPropertyId(propertyUrl)
-    if (!propertyId) {
-      showError('Could not extract property ID from URL')
-      return
-    }
-
+  const handleAddHouse = async (propertyId: string, buyerId: string, propertyData: {
+    propertyId: string;
+    listingId: string;
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    price: number;
+    priceFormatted: string;
+    bedrooms: number | null;
+    bathrooms: number | null;
+    sqft: number | null;
+    yearBuilt: number | null;
+    propertyType: string | null;
+    status: string;
+    image: string | null;
+  }) => {
     setIsAdding(true)
 
     try {
       const response = await fetch('/api/houses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           propertyId,
-          buyerId: selectedClientId,
+          buyerId,
+          propertyData,
         }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error?.message || 'Failed to add house')
+        // Include validation details in error message if available
+        const errorDetails = data.error?.details ? JSON.stringify(data.error.details) : ''
+        throw new Error(data.error?.message + (errorDetails ? `: ${errorDetails}` : '') || 'Failed to add house')
       }
 
       success('House added successfully')
       setIsModalOpen(false)
-      setPropertyUrl('')
-      setSelectedClientId('')
       fetchHouses()
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Failed to add house')
@@ -244,13 +234,17 @@ export default function RealtorHouses() {
   // Loading state
   if (loading && houses.length === 0) {
     return (
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Houses</h1>
-            <p className="text-gray-600">Manage houses for your clients</p>
-          </div>
-        </div>
+      <div className="space-y-6">
+        <PageHeader
+          title="Houses"
+          subtitle="Manage houses for your clients"
+          icon={<BuildingIcon />}
+          action={{
+            label: 'Add House',
+            icon: <PlusIcon />,
+            onClick: () => setIsModalOpen(true),
+          }}
+        />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden animate-pulse">
@@ -270,32 +264,37 @@ export default function RealtorHouses() {
   // Error state
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto">
+      <div className="space-y-6">
+        <PageHeader
+          title="Houses"
+          subtitle="Manage houses for your clients"
+          icon={<BuildingIcon />}
+        />
         <NetworkError onRetry={fetchHouses} />
       </div>
     )
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Houses</h1>
-          <p className="text-gray-600">
-            {total > 0 ? `${total} house${total !== 1 ? 's' : ''} for your clients` : 'Manage houses for your clients'}
-          </p>
-        </div>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          Add House
-        </Button>
-      </div>
+      <PageHeader
+        title="Houses"
+        subtitle="Manage houses for your clients"
+        icon={<BuildingIcon />}
+        stats={total > 0 ? [
+          { label: 'Total', value: total },
+          { label: 'Added by Me', value: houses.filter(h => h.addedByRealtor !== null).length },
+        ] : undefined}
+        action={{
+          label: 'Add House',
+          icon: <PlusIcon />,
+          onClick: () => setIsModalOpen(true),
+        }}
+      />
 
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <SearchInput
             placeholder="Search by address, city, or state..."
@@ -364,6 +363,8 @@ export default function RealtorHouses() {
                     fill
                     className="object-cover"
                     sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    quality={90}
+                    unoptimized
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center text-gray-400">
@@ -476,69 +477,12 @@ export default function RealtorHouses() {
       )}
 
       {/* Add House Modal */}
-      <Modal
+      <AddHouseForClientModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Add House for Client"
-        size="md"
-      >
-        <div className="space-y-4">
-          {/* Client Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Select Client *
-            </label>
-            <select
-              value={selectedClientId}
-              onChange={(e) => setSelectedClientId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Choose a client...</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name} ({client.email})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Property URL */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Property URL or ID *
-            </label>
-            <input
-              type="text"
-              value={propertyUrl}
-              onChange={(e) => setPropertyUrl(e.target.value)}
-              placeholder="Paste Zillow URL or property ID..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': '#006AFF' } as React.CSSProperties}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Paste a Zillow property URL or enter the property ID directly
-            </p>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-2 pt-4 border-t">
-            <Button
-              onClick={handleAddHouse}
-              isLoading={isAdding}
-              disabled={!propertyUrl || !selectedClientId}
-            >
-              Add House
-            </Button>
-            <Button
-              onClick={() => setIsModalOpen(false)}
-              variant="outline"
-              disabled={isAdding}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onAdd={handleAddHouse}
+        clients={clients}
+      />
     </div>
   )
 }

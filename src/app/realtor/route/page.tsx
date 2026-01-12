@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { NetworkError } from '@/components/ui/ErrorState'
+import PageHeader, { RouteIcon } from '@/components/ui/PageHeader'
 import { format, parseISO, startOfDay, endOfDay, addDays } from 'date-fns'
 
 interface House {
@@ -118,11 +119,12 @@ export default function RealtorRoute() {
   // Loading state
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Plan Route</h1>
-          <p className="text-gray-600">Optimize your visit route for the day</p>
-        </div>
+      <div className="space-y-6">
+        <PageHeader
+          title="Plan Route"
+          subtitle="Optimize your visit route for the day"
+          icon={<RouteIcon />}
+        />
         <div className="animate-pulse">
           <div className="flex gap-2 mb-6">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -141,18 +143,28 @@ export default function RealtorRoute() {
   // Error state
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="space-y-6">
+        <PageHeader
+          title="Plan Route"
+          subtitle="Optimize your visit route for the day"
+          icon={<RouteIcon />}
+        />
         <NetworkError onRetry={fetchVisits} />
       </div>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Plan Route</h1>
-        <p className="text-gray-600">Optimize your visit route for the day</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Plan Route"
+        subtitle="Optimize your visit route for the day"
+        icon={<RouteIcon />}
+        stats={visits.length > 0 ? [
+          { label: 'Days with Visits', value: uniqueDates.length },
+          { label: 'Total Visits', value: visits.length },
+        ] : undefined}
+      />
 
       {uniqueDates.length === 0 ? (
         <Card className="text-center py-12">

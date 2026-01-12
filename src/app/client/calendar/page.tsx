@@ -8,6 +8,7 @@ import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { NetworkError } from '@/components/ui/ErrorState'
+import PageHeader, { CalendarIcon, PlusIcon } from '@/components/ui/PageHeader'
 import { SlotInfo } from 'react-big-calendar'
 
 interface House {
@@ -221,53 +222,28 @@ export default function CalendarPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Visit Calendar</h1>
-          <p className="text-gray-600">Schedule and manage your house visits</p>
-        </div>
-
-        <Button
-          onClick={() => {
+      <PageHeader
+        title="Visit Calendar"
+        subtitle="Schedule and manage your house visits"
+        icon={<CalendarIcon />}
+        stats={stats ? [
+          { label: 'Total', value: stats.total },
+          { label: 'Scheduled', value: stats.scheduled },
+          { label: 'In Progress', value: stats.inProgress },
+          { label: 'Completed', value: stats.completed },
+        ] : undefined}
+        action={{
+          label: 'Schedule Visit',
+          icon: <PlusIcon />,
+          onClick: () => {
             setSelectedSlot(addHours(new Date(), 1))
             setNewVisitDate(format(new Date(), 'yyyy-MM-dd'))
             setNewVisitTime('10:00')
             setShowNewVisitModal(true)
             fetchHouses()
-          }}
-        >
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Schedule Visit
-        </Button>
-      </div>
-
-      {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-            <div className="text-sm text-gray-500">Total Visits</div>
-          </div>
-          <div className="bg-white rounded-lg p-4" style={{ borderWidth: '1px', borderStyle: 'solid', borderColor: '#BBDEFB' }}>
-            <div className="text-2xl font-bold" style={{ color: '#006AFF' }}>{stats.scheduled}</div>
-            <div className="text-sm text-gray-500">Scheduled</div>
-          </div>
-          <div className="bg-white rounded-lg border border-amber-200 p-4">
-            <div className="text-2xl font-bold text-amber-600">{stats.inProgress}</div>
-            <div className="text-sm text-gray-500">In Progress</div>
-          </div>
-          <div className="bg-white rounded-lg border border-green-200 p-4">
-            <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-            <div className="text-sm text-gray-500">Completed</div>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-2xl font-bold text-gray-400">{stats.cancelled}</div>
-            <div className="text-sm text-gray-500">Cancelled</div>
-          </div>
-        </div>
-      )}
+          },
+        }}
+      />
 
       {/* Calendar */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 relative">

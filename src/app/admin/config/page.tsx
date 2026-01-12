@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Card from '@/components/ui/Card'
 import Button, { LoadingSpinner } from '@/components/ui/Button'
 import { NetworkError } from '@/components/ui/ErrorState'
+import PageHeader, { SettingsIcon } from '@/components/ui/PageHeader'
 import { toast } from '@/components/ui/Toast'
 
 interface ConfigData {
@@ -142,6 +143,11 @@ export default function AdminConfigPage() {
   if (loading) {
     return (
       <div className="space-y-6">
+        <PageHeader
+          title="System Configuration"
+          subtitle="Manage API keys and integrations"
+          icon={<SettingsIcon />}
+        />
         <div className="flex items-center justify-center py-12">
           <LoadingSpinner />
         </div>
@@ -150,17 +156,27 @@ export default function AdminConfigPage() {
   }
 
   if (error) {
-    return <NetworkError onRetry={fetchConfig} />
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="System Configuration"
+          subtitle="Manage API keys and integrations"
+          icon={<SettingsIcon />}
+        />
+        <NetworkError onRetry={fetchConfig} />
+      </div>
+    )
   }
 
   if (!config) return null
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">System Configuration</h1>
-        <p className="text-gray-500 mt-1">Manage API keys and integrations</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="System Configuration"
+        subtitle="Manage API keys and integrations"
+        icon={<SettingsIcon />}
+      />
 
       {/* API Status Overview */}
       <div>
@@ -251,16 +267,32 @@ export default function AdminConfigPage() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">API Keys</h2>
-          <button
+          <Button
+            variant={showKeys ? 'secondary' : 'primary'}
+            size="sm"
             onClick={() => setShowKeys(!showKeys)}
-            className="text-sm text-gray-500 hover:text-gray-700"
           >
-            {showKeys ? 'Hide Form' : 'Update Keys'}
-          </button>
+            {showKeys ? 'Hide Form' : 'Configure API Keys'}
+          </Button>
         </div>
 
+        {!showKeys && (
+          <Card className="bg-gray-50 border-dashed">
+            <div className="text-center py-4">
+              <p className="text-sm text-gray-600 mb-3">
+                API keys are currently loaded from environment variables.
+                <br />
+                Click "Configure API Keys" to save them to the database for persistent storage.
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setShowKeys(true)}>
+                Configure API Keys
+              </Button>
+            </div>
+          </Card>
+        )}
+
         {showKeys && (
-          <Card className="space-y-6">
+          <Card className="space-y-6 border-blue-200 bg-blue-50/30">
             {/* Anthropic */}
             <div>
               <div className="flex items-center justify-between mb-2">

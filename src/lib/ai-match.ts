@@ -1,10 +1,21 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { DreamHousePreferences } from './ai'
+import { getConfig, CONFIG_KEYS, markConfigUsed } from './config'
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || '',
-})
+// Lazy client initialization
+let anthropicClient: Anthropic | null = null
+
+async function getAnthropicClient(): Promise<Anthropic> {
+  const apiKey = await getConfig(CONFIG_KEYS.ANTHROPIC_API_KEY)
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY is not configured. Please set it in Admin > Configuration.')
+  }
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({ apiKey })
+  }
+  await markConfigUsed(CONFIG_KEYS.ANTHROPIC_API_KEY).catch(() => {})
+  return anthropicClient
+}
 
 export interface HouseData {
   id: string
@@ -73,9 +84,7 @@ export async function calculateMatchScore(
   house: HouseData,
   preferences: DreamHousePreferences
 ): Promise<MatchScoreResult> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY is not configured')
-  }
+  const anthropic = await getAnthropicClient()
 
   const houseInfo = `
 Property Details:
@@ -193,9 +202,7 @@ export async function analyzeRecordingTranscript(
   transcript: string,
   roomName: string
 ): Promise<RecordingAnalysisResult> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY is not configured')
-  }
+  const anthropic = await getAnthropicClient()
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',

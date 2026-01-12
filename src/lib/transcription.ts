@@ -2,11 +2,20 @@ import Anthropic from '@anthropic-ai/sdk'
 import fs from 'fs/promises'
 import path from 'path'
 import { prisma } from './prisma'
+import { getConfig, CONFIG_KEYS, markConfigUsed } from './config'
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || '',
-})
+// Lazy client initialization
+let anthropicClient: Anthropic | null = null
+
+async function getAnthropicClient(): Promise<Anthropic | null> {
+  const apiKey = await getConfig(CONFIG_KEYS.ANTHROPIC_API_KEY)
+  if (!apiKey) return null
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({ apiKey })
+  }
+  await markConfigUsed(CONFIG_KEYS.ANTHROPIC_API_KEY).catch(() => {})
+  return anthropicClient
+}
 
 export interface TranscriptionResult {
   transcript: string
@@ -212,7 +221,8 @@ async function logApiCall(
  * Detect language from text using AI
  */
 export async function detectLanguage(text: string): Promise<string> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const anthropic = await getAnthropicClient()
+  if (!anthropic) {
     return 'en' // Default to English
   }
 

@@ -97,6 +97,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     })
 
+    // Extract rich data from rawApiData if available
+    const rawData = houseBuyer.house.rawApiData as Record<string, unknown> | null
+    const description = rawData?.description as Record<string, unknown> | undefined
+    const features = rawData?.features as Array<{ category: string; text: string[] }> | undefined
+    const priceHistory = rawData?.price_history as Array<{ date: string; price: number; event_name: string }> | undefined
+    const taxHistory = rawData?.tax_history as Array<{ year: number; tax: number; assessment?: { total: number } }> | undefined
+    const schools = rawData?.schools as Array<{ name: string; distance_in_miles: number; education_levels: string[]; rating: number; funding_type: string }> | undefined
+    const location = rawData?.location as { neighborhoods?: Array<{ name: string; id: string }>; county?: { name: string } } | undefined
+
     return successResponse({
         id: houseBuyer.id,
         isFavorite: houseBuyer.isFavorite,
@@ -122,6 +131,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           listingStatus: houseBuyer.house.listingStatus,
           images: houseBuyer.house.images,
           lastSyncedAt: houseBuyer.house.lastSyncedAt,
+          // Rich data from API
+          lotSqft: (description?.lot_sqft as number) ?? null,
+          garage: (description?.garage as number) ?? null,
+          stories: (description?.stories as number) ?? null,
+          pool: (description?.pool as boolean) ?? null,
+          fireplace: (description?.fireplace as boolean) ?? null,
+          heating: (description?.heating as string) ?? null,
+          cooling: (description?.cooling as string) ?? null,
+          bathsFull: (description?.baths_full as number) ?? null,
+          bathsHalf: (description?.baths_half as number) ?? null,
+          features: features ?? [],
+          priceHistory: priceHistory ?? [],
+          taxHistory: taxHistory ?? [],
+          schools: schools ?? [],
+          neighborhood: location?.neighborhoods?.[0]?.name ?? null,
+          county: location?.county?.name ?? null,
         },
         buyer: houseBuyer.buyer,
         addedByRealtor: houseBuyer.addedByRealtor,

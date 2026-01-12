@@ -7,6 +7,7 @@ import Button from '@/components/ui/Button'
 import AudioTimeline from '@/components/audio/AudioTimeline'
 import { NetworkError } from '@/components/ui/ErrorState'
 import { useToast } from '@/components/ui/Toast'
+import PageHeader, { CompareIcon } from '@/components/ui/PageHeader'
 import { DEFAULT_ROOMS, IMPRESSION_EMOJIS } from '@/types'
 
 interface House {
@@ -132,11 +133,12 @@ export default function ComparePage() {
   // Loading state
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-6">
-          <div className="h-8 bg-gray-200 rounded w-48 animate-pulse" />
-          <div className="h-4 bg-gray-200 rounded w-64 mt-2 animate-pulse" />
-        </div>
+      <div className="space-y-6">
+        <PageHeader
+          title="Compare Houses"
+          subtitle="Listen to your recordings side by side"
+          icon={<CompareIcon />}
+        />
         <Card className="mb-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -154,18 +156,28 @@ export default function ComparePage() {
   // Error state
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto">
+      <div className="space-y-6">
+        <PageHeader
+          title="Compare Houses"
+          subtitle="Listen to your recordings side by side"
+          icon={<CompareIcon />}
+        />
         <NetworkError onRetry={fetchCompareData} />
       </div>
     )
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Compare Houses</h1>
-        <p className="text-gray-600">Listen to your recordings side by side</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Compare Houses"
+        subtitle="Listen to your recordings side by side"
+        icon={<CompareIcon />}
+        stats={visitedHouses.length > 0 ? [
+          { label: 'Visited', value: visitedHouses.length },
+          { label: 'Selected', value: selectedHouses.length },
+        ] : undefined}
+      />
 
       {/* House Selector */}
       <Card className="mb-6">

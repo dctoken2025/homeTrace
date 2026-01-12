@@ -3,6 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth-session'
 import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
 import { subDays, startOfMonth } from 'date-fns'
+import {
+  getConfig,
+  setConfig,
+  getAllConfigs,
+  isConfigured,
+  CONFIG_KEYS,
+  clearConfigCache,
+} from '@/lib/config'
 
 // GET /api/admin/config - Get system configuration status
 export async function GET(request: NextRequest) {
@@ -19,7 +27,6 @@ export async function GET(request: NextRequest) {
     // Get API usage stats
     const now = new Date()
     const monthStart = startOfMonth(now)
-    const last24Hours = subDays(now, 1)
 
     // Anthropic stats
     const anthropicLogs = await prisma.apiLog.findMany({
@@ -63,32 +70,48 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Get all configs from database
+    const dbConfigs = await getAllConfigs()
+    const configMap = new Map(dbConfigs.map((c) => [c.key, c]))
+
+    // Check configuration status (from DB or env fallback)
+    const [anthropicConfigured, resendConfigured, rapidApiConfigured, storagePath, jwtConfigured] =
+      await Promise.all([
+        isConfigured(CONFIG_KEYS.ANTHROPIC_API_KEY),
+        isConfigured(CONFIG_KEYS.RESEND_API_KEY),
+        isConfigured(CONFIG_KEYS.RAPIDAPI_KEY),
+        getConfig(CONFIG_KEYS.STORAGE_PATH),
+        isConfigured(CONFIG_KEYS.JWT_SECRET),
+      ])
+
     return successResponse({
       anthropic: {
-        configured: !!process.env.ANTHROPIC_API_KEY,
-        lastUsed: anthropicLogs[0]?.createdAt?.toISOString() || null,
+        configured: anthropicConfigured,
+        lastUsed: anthropicLogs[0]?.createdAt?.toISOString() || configMap.get(CONFIG_KEYS.ANTHROPIC_API_KEY)?.lastUsedAt?.toISOString() || null,
         usageCount: anthropicUsage,
       },
       resend: {
-        configured: !!process.env.RESEND_API_KEY,
-        lastUsed: resendLogs[0]?.createdAt?.toISOString() || null,
+        configured: resendConfigured,
+        lastUsed: resendLogs[0]?.createdAt?.toISOString() || configMap.get(CONFIG_KEYS.RESEND_API_KEY)?.lastUsedAt?.toISOString() || null,
         usageCount: resendUsage,
       },
       realtyApi: {
-        configured: !!process.env.RAPIDAPI_KEY,
-        lastUsed: realtyLogs[0]?.createdAt?.toISOString() || null,
+        configured: rapidApiConfigured,
+        lastUsed: realtyLogs[0]?.createdAt?.toISOString() || configMap.get(CONFIG_KEYS.RAPIDAPI_KEY)?.lastUsedAt?.toISOString() || null,
         usageCount: realtyUsage,
         monthlyLimit: 500, // RapidAPI free tier
         monthlyUsage: realtyUsage,
       },
       storage: {
-        path: process.env.STORAGE_PATH || './uploads',
-        configured: !!process.env.STORAGE_PATH,
+        path: storagePath || process.env.STORAGE_PATH || './uploads',
+        configured: !!storagePath || !!process.env.STORAGE_PATH,
       },
       jwt: {
-        configured: !!process.env.JWT_SECRET,
+        configured: jwtConfigured || !!process.env.JWT_SECRET,
         expiresIn: process.env.JWT_EXPIRES_IN || '7d',
       },
+      // Include database configs for admin visibility
+      configs: dbConfigs,
     })
   } catch (error) {
     console.error('Get config error:', error)
@@ -96,8 +119,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PUT /api/admin/config - Update API keys (Note: This updates environment variables at runtime)
-// In production, you should use a secrets manager instead
+// PUT /api/admin/config - Update API keys (now persisted to database)
 export async function PUT(request: NextRequest) {
   try {
     const session = await getSessionUser(request)
@@ -110,32 +132,53 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { anthropicKey, resendKey, rapidApiKey } = body
-
-    // Note: In a real production environment, you would:
-    // 1. Store these in a secrets manager (AWS Secrets Manager, HashiCorp Vault, etc.)
-    // 2. Use a configuration service
-    // 3. Restart the service or hot-reload the configuration
-
-    // For now, we'll update the process.env (this won't persist after restart)
-    // and log the action for audit purposes
+    const { anthropicKey, resendKey, rapidApiKey, storagePath, realtyApiHost } = body
 
     const updates: string[] = []
 
+    // Save to database (encrypted)
     if (anthropicKey) {
-      process.env.ANTHROPIC_API_KEY = anthropicKey
+      await setConfig(CONFIG_KEYS.ANTHROPIC_API_KEY, anthropicKey, {
+        description: 'Anthropic API key for Claude AI (chat, analysis, reports)',
+        isSecret: true,
+      })
       updates.push('ANTHROPIC_API_KEY')
     }
 
     if (resendKey) {
-      process.env.RESEND_API_KEY = resendKey
+      await setConfig(CONFIG_KEYS.RESEND_API_KEY, resendKey, {
+        description: 'Resend API key for sending emails',
+        isSecret: true,
+      })
       updates.push('RESEND_API_KEY')
     }
 
     if (rapidApiKey) {
-      process.env.RAPIDAPI_KEY = rapidApiKey
+      await setConfig(CONFIG_KEYS.RAPIDAPI_KEY, rapidApiKey, {
+        description: 'RapidAPI key for Realty in US property API',
+        isSecret: true,
+      })
       updates.push('RAPIDAPI_KEY')
     }
+
+    if (storagePath) {
+      await setConfig(CONFIG_KEYS.STORAGE_PATH, storagePath, {
+        description: 'Path for file storage',
+        isSecret: false,
+      })
+      updates.push('STORAGE_PATH')
+    }
+
+    if (realtyApiHost) {
+      await setConfig(CONFIG_KEYS.REALTY_API_HOST, realtyApiHost, {
+        description: 'Realty API host URL',
+        isSecret: false,
+      })
+      updates.push('REALTY_API_HOST')
+    }
+
+    // Clear cache to pick up new values
+    clearConfigCache()
 
     // Log the configuration change
     if (updates.length > 0) {
@@ -152,12 +195,60 @@ export async function PUT(request: NextRequest) {
     }
 
     return successResponse({
-      message: 'Configuration updated successfully',
+      message: 'Configuration saved successfully',
       updatedKeys: updates,
-      note: 'Changes are applied immediately but will not persist after server restart. For permanent changes, update your environment variables or secrets manager.',
+      note: 'Changes are persisted in the database and will survive server restarts.',
     })
   } catch (error) {
     console.error('Update config error:', error)
     return errorResponse(ErrorCode.INTERNAL_ERROR, 'Failed to update configuration')
+  }
+}
+
+// DELETE /api/admin/config - Delete a configuration key
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getSessionUser(request)
+    if (!session) {
+      return Errors.unauthorized()
+    }
+
+    if (session.role !== 'ADMIN') {
+      return errorResponse(ErrorCode.FORBIDDEN, 'Admin access required')
+    }
+
+    const { searchParams } = new URL(request.url)
+    const key = searchParams.get('key')
+
+    if (!key) {
+      return errorResponse(ErrorCode.VALIDATION_ERROR, 'Config key is required')
+    }
+
+    await prisma.systemConfig.delete({
+      where: { key },
+    }).catch(() => {
+      // Ignore if not found
+    })
+
+    clearConfigCache()
+
+    // Log the deletion
+    await prisma.apiLog.create({
+      data: {
+        service: 'config',
+        endpoint: '/api/admin/config',
+        method: 'DELETE',
+        requestBody: { deletedKey: key },
+        responseStatus: 200,
+        userId: session.userId,
+      },
+    })
+
+    return successResponse({
+      message: `Configuration key '${key}' deleted successfully`,
+    })
+  } catch (error) {
+    console.error('Delete config error:', error)
+    return errorResponse(ErrorCode.INTERNAL_ERROR, 'Failed to delete configuration')
   }
 }

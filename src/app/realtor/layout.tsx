@@ -76,7 +76,7 @@ export default function RealtorLayout({
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar items={realtorNavItems} title="Realtor Portal" homeHref="/realtor" />
-      <main className="flex-1 pt-14 lg:pt-0 px-4 py-4 lg:p-6 min-w-0">{children}</main>
+      <main className="flex-1 pt-16 lg:pt-6 px-4 pb-4 lg:px-6 lg:pb-6 min-w-0">{children}</main>
     </div>
   );
 }

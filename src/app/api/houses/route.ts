@@ -14,11 +14,31 @@ import { realtyAPI, transformPropertyToHouse } from '@/lib/realty-api'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 
+// Schema for property data passed from search results
+const propertyDataSchema = z.object({
+  propertyId: z.string().min(1),
+  listingId: z.string().optional(),
+  address: z.string().min(1),
+  city: z.string().min(1),
+  state: z.string().min(1),
+  zipCode: z.string().min(1),
+  price: z.number(),
+  bedrooms: z.number().nullable().optional(),
+  bathrooms: z.number().nullable().optional(),
+  sqft: z.number().nullable().optional(),
+  yearBuilt: z.number().nullable().optional(),
+  propertyType: z.string().nullable().optional(),
+  status: z.string().optional(),
+  image: z.string().nullable().optional(),
+})
+
 // Schema for adding a house
 const addHouseSchema = z.object({
   propertyId: z.string().min(1, 'Property ID is required'),
-  buyerId: z.string().uuid().optional(), // Required for realtors adding for a buyer
+  buyerId: z.string().min(1).optional(), // Required for realtors adding for a buyer (CUID format)
   notes: z.string().optional(),
+  // Optional property data from search - if provided, we don't need to call external API
+  propertyData: propertyDataSchema.optional(),
 })
 
 // Schema for query params
@@ -201,7 +221,7 @@ export async function GET(request: NextRequest) {
       addedByRealtor: hb.addedByRealtor,
     }))
 
-    return paginatedResponse(items, total, page, limit)
+    return paginatedResponse(items, page, limit, total)
   } catch (error) {
     console.error('List houses error:', error)
     return errorResponse(ErrorCode.INTERNAL_ERROR, 'Failed to list houses')
@@ -231,7 +251,7 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    const { propertyId, buyerId, notes } = validation.data
+    const { propertyId, buyerId, notes, propertyData } = validation.data
 
     // Determine target buyer ID
     let targetBuyerId: string
@@ -274,36 +294,61 @@ export async function POST(request: NextRequest) {
     })
 
     if (!house) {
-      // Fetch from external API and create
-      const propertyDetail = await realtyAPI.getPropertyDetail(propertyId)
+      // If property data was provided from search, use it directly
+      if (propertyData) {
+        house = await prisma.house.create({
+          data: {
+            externalId: propertyData.propertyId,
+            address: propertyData.address,
+            city: propertyData.city,
+            state: propertyData.state,
+            zipCode: propertyData.zipCode,
+            latitude: null,
+            longitude: null,
+            price: propertyData.price,
+            bedrooms: propertyData.bedrooms ?? null,
+            bathrooms: propertyData.bathrooms ?? null,
+            sqft: propertyData.sqft ?? null,
+            yearBuilt: propertyData.yearBuilt ?? null,
+            propertyType: propertyData.propertyType ?? null,
+            listingStatus: propertyData.status || 'for_sale',
+            lastSyncedAt: new Date(),
+            images: propertyData.image ? [propertyData.image] : [],
+            rawApiData: propertyData as unknown as Prisma.InputJsonValue,
+          },
+        })
+      } else {
+        // Fallback: Fetch from external API
+        const propertyDetail = await realtyAPI.getPropertyDetail(propertyId)
 
-      if (!propertyDetail) {
-        return errorResponse(ErrorCode.NOT_FOUND, 'Property not found in external API')
+        if (!propertyDetail) {
+          return errorResponse(ErrorCode.NOT_FOUND, `Property not found in external API (ID: ${propertyId})`)
+        }
+
+        const houseData = transformPropertyToHouse(propertyDetail)
+
+        house = await prisma.house.create({
+          data: {
+            externalId: houseData.externalId,
+            address: houseData.address,
+            city: houseData.city,
+            state: houseData.state,
+            zipCode: houseData.zipCode,
+            latitude: houseData.latitude,
+            longitude: houseData.longitude,
+            price: houseData.price,
+            bedrooms: houseData.bedrooms,
+            bathrooms: houseData.bathrooms,
+            sqft: houseData.sqft,
+            yearBuilt: houseData.yearBuilt,
+            propertyType: houseData.propertyType,
+            listingStatus: houseData.listingStatus,
+            lastSyncedAt: houseData.lastSyncedAt,
+            images: houseData.images,
+            rawApiData: houseData.rawApiData as unknown as Prisma.InputJsonValue,
+          },
+        })
       }
-
-      const houseData = transformPropertyToHouse(propertyDetail)
-
-      house = await prisma.house.create({
-        data: {
-          externalId: houseData.externalId,
-          address: houseData.address,
-          city: houseData.city,
-          state: houseData.state,
-          zipCode: houseData.zipCode,
-          latitude: houseData.latitude,
-          longitude: houseData.longitude,
-          price: houseData.price,
-          bedrooms: houseData.bedrooms,
-          bathrooms: houseData.bathrooms,
-          sqft: houseData.sqft,
-          yearBuilt: houseData.yearBuilt,
-          propertyType: houseData.propertyType,
-          listingStatus: houseData.listingStatus,
-          lastSyncedAt: houseData.lastSyncedAt,
-          images: houseData.images,
-          rawApiData: houseData.rawApiData as unknown as Prisma.InputJsonValue,
-        },
-      })
     }
 
     // Check if buyer already has this house

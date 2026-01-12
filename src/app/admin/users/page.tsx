@@ -6,6 +6,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { SearchInput, Select } from '@/components/ui/Form'
 import { NetworkError } from '@/components/ui/ErrorState'
+import PageHeader, { UsersIcon } from '@/components/ui/PageHeader'
 import { format, parseISO } from 'date-fns'
 
 interface User {
@@ -106,11 +107,29 @@ export default function AdminUsersPage() {
   }
 
   if (error && users.length === 0) {
-    return <NetworkError onRetry={fetchUsers} />
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="User Management"
+          subtitle="View and manage all user accounts"
+          icon={<UsersIcon />}
+        />
+        <NetworkError onRetry={fetchUsers} />
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="User Management"
+        subtitle="View and manage all user accounts"
+        icon={<UsersIcon />}
+        stats={[
+          { label: 'Total Users', value: total },
+        ]}
+      />
+
       {/* Filters */}
       <Card>
         <div className="flex flex-col sm:flex-row gap-4">

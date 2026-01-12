@@ -1,0 +1,163 @@
+{
+  "startTime": "2025-01-07T21:45:00Z",
+  "endTime": "2025-01-08T10:15:00Z",
+  "summary": {
+    "total": 49,
+    "passed": 48,
+    "failed": 1,
+    "bugs": 7,
+    "bugs_fixed": 6
+  },
+  "phases": [
+    {
+      "name": "FASE 1: Autenticacao",
+      "status": "completed",
+      "tests": [
+        {"id": "1.1", "name": "Pagina de login carrega", "status": "passed"},
+        {"id": "1.2", "name": "Login Admin funciona", "status": "passed"},
+        {"id": "1.3", "name": "Logout Admin funciona", "status": "passed"},
+        {"id": "1.4", "name": "Login Realtor funciona", "status": "passed"},
+        {"id": "1.5", "name": "Logout Realtor funciona", "status": "passed"},
+        {"id": "1.6", "name": "Login Buyer funciona", "status": "passed"},
+        {"id": "1.7", "name": "Login invalido mostra erro", "status": "passed"},
+        {"id": "1.8", "name": "Pagina de registro carrega", "status": "passed"}
+      ]
+    },
+    {
+      "name": "FASE 2: Jornada Buyer",
+      "status": "completed",
+      "tests": [
+        {"id": "2.1", "name": "Dream House Profile carrega", "status": "passed"},
+        {"id": "2.2", "name": "AI Chat responde perguntas", "status": "passed"},
+        {"id": "2.3", "name": "My Houses carrega", "status": "passed"},
+        {"id": "2.4", "name": "Add House modal abre", "status": "passed"},
+        {"id": "2.5", "name": "Empty state mostra corretamente", "status": "passed"},
+        {"id": "2.6", "name": "Calendar carrega", "status": "passed"},
+        {"id": "2.7", "name": "Schedule Visit modal abre", "status": "passed"},
+        {"id": "2.8", "name": "Compare Houses carrega", "status": "passed"},
+        {"id": "2.9", "name": "AI Reports carrega", "status": "passed"},
+        {"id": "2.10", "name": "Settings Profile tab", "status": "passed"},
+        {"id": "2.11", "name": "Settings Privacy tab", "status": "passed"},
+        {"id": "2.12", "name": "Settings Password tab", "status": "passed"},
+        {"id": "2.13", "name": "Dashboard carrega", "status": "passed"},
+        {"id": "2.14", "name": "Sidebar navigation funciona", "status": "passed"}
+      ]
+    },
+    {
+      "name": "FASE 3: Jornada Realtor",
+      "status": "completed",
+      "tests": [
+        {"id": "3.1", "name": "Login Realtor", "status": "passed"},
+        {"id": "3.2", "name": "Dashboard carrega", "status": "passed"},
+        {"id": "3.3", "name": "Clients page", "status": "passed"},
+        {"id": "3.4", "name": "Houses page", "status": "passed"},
+        {"id": "3.5", "name": "Schedule page", "status": "passed"},
+        {"id": "3.6", "name": "Tours page", "status": "passed"},
+        {"id": "3.7", "name": "Invite Client page", "status": "passed"},
+        {"id": "3.8", "name": "Settings Profile", "status": "passed"},
+        {"id": "3.9", "name": "Settings Password", "status": "passed"},
+        {"id": "3.10", "name": "Sign Out funciona", "status": "passed"}
+      ]
+    },
+    {
+      "name": "FASE 4: Jornada Admin",
+      "status": "completed",
+      "tests": [
+        {"id": "4.1", "name": "Login Admin", "status": "passed"},
+        {"id": "4.2", "name": "Dashboard carrega", "status": "passed"},
+        {"id": "4.3", "name": "Users page", "status": "passed"},
+        {"id": "4.4", "name": "Houses page", "status": "passed"},
+        {"id": "4.5", "name": "Logs page", "status": "passed"},
+        {"id": "4.6", "name": "Integrations page", "status": "failed", "note": "404 - pagina nao existe"}
+      ]
+    },
+    {
+      "name": "FASE 5: Teste E2E Completo",
+      "status": "completed",
+      "tests": [
+        {"id": "5.1", "name": "Login Buyer e navegar para My Houses", "status": "passed"},
+        {"id": "5.2", "name": "Listagem de casas carrega corretamente", "status": "passed"},
+        {"id": "5.3", "name": "API GET /api/houses retorna dados corretos", "status": "passed"},
+        {"id": "5.4", "name": "API POST /api/houses autenticacao funciona", "status": "passed"},
+        {"id": "5.5", "name": "Modal Add House abre e valida URL", "status": "passed"},
+        {"id": "5.6", "name": "Favoritar casa funciona", "status": "passed"},
+        {"id": "5.7", "name": "Cards de casas exibem informacoes corretas", "status": "passed"},
+        {"id": "5.8", "name": "Filtros de busca funcionam", "status": "passed"},
+        {"id": "5.9", "name": "Navegacao sidebar funciona", "status": "passed"},
+        {"id": "5.10", "name": "Session management (login/logout)", "status": "passed"},
+        {"id": "5.11", "name": "Imagens das casas carregam corretamente", "status": "passed"}
+      ]
+    }
+  ],
+  "bugs": [
+    {
+      "id": "BUG-001",
+      "severity": "medium",
+      "title": "Sign Out link nao faz logout real",
+      "description": "O link 'Sign Out' na sidebar tem href='/' - apenas redireciona para home sem chamar a API de logout.",
+      "location": "src/components/layout/Sidebar.tsx",
+      "status": "fixed",
+      "fix": "Alterado de Link para button com handler async que chama /api/auth/logout"
+    },
+    {
+      "id": "BUG-002",
+      "severity": "high",
+      "title": "TypeError ao carregar My Houses (Buyer)",
+      "description": "Cannot read properties of undefined (reading 'totalPages')",
+      "location": "src/app/api/houses/route.ts",
+      "status": "fixed",
+      "fix": "Corrigido ordem dos parametros: paginatedResponse(items, page, limit, total)"
+    },
+    {
+      "id": "BUG-003",
+      "severity": "high",
+      "title": "Add House page 404",
+      "description": "Botao 'Add House' navegava para /client/houses/add que nao existe",
+      "location": "src/app/client/houses/page.tsx",
+      "status": "fixed",
+      "fix": "Integrado AddHouseModal component ao inves de navegar para pagina inexistente"
+    },
+    {
+      "id": "BUG-004",
+      "severity": "high",
+      "title": "TypeError ao carregar Houses (Realtor)",
+      "description": "Mesmo erro do BUG-002 na pagina de casas do Realtor",
+      "location": "src/app/realtor/houses/page.tsx",
+      "status": "fixed",
+      "fix": "Adicionado null checks defensivos: data.data?.items || []"
+    },
+    {
+      "id": "BUG-005",
+      "severity": "medium",
+      "title": "Admin Integrations page 404",
+      "description": "Link 'Integrations' no menu admin leva a pagina que nao existe",
+      "location": "src/app/admin/integrations (NAO EXISTE)",
+      "status": "pending",
+      "fix": "Criar pagina ou remover link do menu"
+    },
+    {
+      "id": "BUG-006",
+      "severity": "high",
+      "title": "My Houses nao renderiza casas existentes",
+      "description": "API retorna {data: [], meta: {...}} mas frontend espera {data: {items: [], pagination: {...}}}",
+      "location": "src/app/client/houses/page.tsx",
+      "status": "fixed",
+      "fix": "Corrigido interface ApiResponse para usar data[] e meta ao inves de data.items e data.pagination"
+    },
+    {
+      "id": "BUG-007",
+      "severity": "high",
+      "title": "Imagens das casas nao carregam",
+      "description": "HouseCard espera campo 'photos' mas API retorna 'images'",
+      "location": "src/components/HouseCard.tsx",
+      "status": "fixed",
+      "fix": "Atualizado para usar fallback: house.photos?.[0] || house.images?.[0]"
+    }
+  ],
+  "suggestions": [
+    "Criar pagina de Integrations para admin ou remover link do menu",
+    "Padronizar formato de resposta da API em todo o projeto",
+    "Adicionar testes automatizados E2E com Playwright ou Cypress",
+    "Implementar loading states mais visiveis nos botoes de acao"
+  ]
+}

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import PageHeader, { RouteIcon, PlusIcon } from '@/components/ui/PageHeader';
 import { format } from 'date-fns';
 
 interface House {
@@ -263,19 +264,22 @@ export default function RealtorTours() {
     : houses;
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tours</h1>
-          <p className="text-gray-600">Plan and manage property tours for your clients</p>
-        </div>
-        <Button onClick={() => setShowCreateModal(true)}>
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Tour
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Tours"
+        subtitle="Plan and manage property tours for your clients"
+        icon={<RouteIcon />}
+        stats={tours.length > 0 ? [
+          { label: 'Total Tours', value: tours.length },
+          { label: 'Planned', value: tours.filter(t => t.status === 'PLANNED').length },
+          { label: 'Completed', value: tours.filter(t => t.status === 'COMPLETED').length },
+        ] : undefined}
+        action={{
+          label: 'New Tour',
+          icon: <PlusIcon />,
+          onClick: () => setShowCreateModal(true),
+        }}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Tours List */}

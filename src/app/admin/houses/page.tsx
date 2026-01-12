@@ -6,6 +6,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { SearchInput, Select } from '@/components/ui/Form'
 import { NetworkError } from '@/components/ui/ErrorState'
+import PageHeader, { BuildingIcon } from '@/components/ui/PageHeader'
 import { formatPrice } from '@/lib/format-utils'
 import { format, parseISO } from 'date-fns'
 
@@ -69,7 +70,9 @@ export default function AdminHousesPage() {
         const data = await housesResponse.json()
 
         if (housesResponse.ok && data.data) {
-          setHouses(data.data.items?.map((h: any) => ({
+          // Handle array response from API
+          const items = Array.isArray(data.data) ? data.data : (data.data.items || [])
+          setHouses(items.map((h: any) => ({
             id: h.house?.id || h.id,
             externalId: h.house?.externalId || h.externalId,
             address: h.house?.address || h.address,
@@ -87,9 +90,9 @@ export default function AdminHousesPage() {
             deletedAt: null,
             buyersCount: 1,
             visitsCount: h.visitCount || 0,
-          })) || [])
-          setTotal(data.data.pagination?.total || 0)
-          setTotalPages(data.data.pagination?.totalPages || 1)
+          })))
+          setTotal(data.meta?.total || items.length)
+          setTotalPages(data.meta?.totalPages || 1)
         }
         setLoading(false)
         return
@@ -101,9 +104,10 @@ export default function AdminHousesPage() {
         throw new Error(data.error?.message || 'Failed to fetch houses')
       }
 
-      setHouses(data.data.items)
-      setTotalPages(data.data.pagination.totalPages)
-      setTotal(data.data.pagination.total)
+      // API returns { success, data: [...], meta: { page, limit, total, totalPages } }
+      setHouses(data.data || [])
+      setTotalPages(data.meta?.totalPages || 1)
+      setTotal(data.meta?.total || 0)
     } catch (err) {
       console.error('Fetch houses error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load houses')
@@ -122,11 +126,29 @@ export default function AdminHousesPage() {
   }
 
   if (error && houses.length === 0) {
-    return <NetworkError onRetry={fetchHouses} />
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="All Houses"
+          subtitle="Browse and manage all property listings"
+          icon={<BuildingIcon />}
+        />
+        <NetworkError onRetry={fetchHouses} />
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="All Houses"
+        subtitle="Browse and manage all property listings"
+        icon={<BuildingIcon />}
+        stats={[
+          { label: 'Total Houses', value: total },
+        ]}
+      />
+
       {/* Filters */}
       <Card>
         <div className="flex flex-col sm:flex-row gap-4">

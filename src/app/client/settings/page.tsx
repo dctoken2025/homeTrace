@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import PageHeader, { SettingsIcon } from '@/components/ui/PageHeader';
 
 interface UserSettings {
   user: {
@@ -191,7 +192,12 @@ export default function BuyerSettings() {
 
   if (isLoading) {
     return (
-      <div className="max-w-3xl mx-auto">
+      <div className="space-y-6">
+        <PageHeader
+          title="Settings"
+          subtitle="Manage your account and privacy preferences"
+          icon={<SettingsIcon />}
+        />
         <div className="text-center py-12 text-gray-500">Loading settings...</div>
       </div>
     );
@@ -211,29 +217,17 @@ export default function BuyerSettings() {
   ];
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600">Manage your account and privacy preferences</p>
-      </div>
-
-      {/* Stats Cards */}
-      {settings?.stats && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <Card className="text-center">
-            <p className="text-3xl font-bold" style={{ color: '#006AFF' }}>{settings.stats.housesCount}</p>
-            <p className="text-sm text-gray-600">Houses</p>
-          </Card>
-          <Card className="text-center">
-            <p className="text-3xl font-bold text-green-600">{settings.stats.visitsCount}</p>
-            <p className="text-sm text-gray-600">Visits</p>
-          </Card>
-          <Card className="text-center">
-            <p className="text-3xl font-bold text-purple-600">{settings.stats.realtorsCount}</p>
-            <p className="text-sm text-gray-600">Realtors</p>
-          </Card>
-        </div>
-      )}
+    <div className="space-y-6">
+      <PageHeader
+        title="Settings"
+        subtitle="Manage your account and privacy preferences"
+        icon={<SettingsIcon />}
+        stats={settings?.stats ? [
+          { label: 'Houses', value: settings.stats.housesCount },
+          { label: 'Visits', value: settings.stats.visitsCount },
+          { label: 'Realtors', value: settings.stats.realtorsCount },
+        ] : undefined}
+      />
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 mb-6">

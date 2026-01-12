@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
+import PageHeader, { ReportIcon, PlusIcon } from '@/components/ui/PageHeader'
 import { format } from 'date-fns'
 
 interface ReportSummary {
@@ -169,9 +170,13 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="space-y-6">
+        <PageHeader
+          title="AI Reports"
+          subtitle="Get AI-powered analysis of your houses and visits"
+          icon={<ReportIcon />}
+        />
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/3" />
           <div className="h-64 bg-gray-200 rounded" />
         </div>
       </div>
@@ -179,23 +184,22 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">AI Reports</h1>
-          <p className="text-gray-600">
-            Get AI-powered analysis of your houses and visits
-          </p>
-        </div>
-
-        <Button onClick={handleGenerate} isLoading={generating}>
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-          </svg>
-          Generate Report
-        </Button>
-      </div>
+      <PageHeader
+        title="AI Reports"
+        subtitle="Get AI-powered analysis of your houses and visits"
+        icon={<ReportIcon />}
+        stats={reports.length > 0 ? [
+          { label: 'Reports', value: reports.length },
+          { label: 'Completed', value: reports.filter(r => r.status === 'COMPLETED').length },
+        ] : undefined}
+        action={{
+          label: generating ? 'Generating...' : 'Generate Report',
+          icon: <PlusIcon />,
+          onClick: handleGenerate,
+        }}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Reports List */}

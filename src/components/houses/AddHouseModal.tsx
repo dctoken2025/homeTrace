@@ -1,66 +1,318 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 
+interface SearchResult {
+  propertyId: string;
+  listingId: string;
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  price: number;
+  priceFormatted: string;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  sqft: number | null;
+  yearBuilt: number | null;
+  propertyType: string | null;
+  status: string;
+  image: string | null;
+}
+
 interface AddHouseModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (url: string) => void;
+  onAdd: (propertyId: string, propertyData: SearchResult) => void;
 }
 
 export default function AddHouseModal({ isOpen, onClose, onAdd }: AddHouseModalProps) {
-  const [url, setUrl] = useState('');
-  const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [selectedProperty, setSelectedProperty] = useState<SearchResult | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchQuery('');
+      setResults([]);
+      setIsSearching(false);
+      setSearchError('');
+      setSelectedProperty(null);
+      setHasSearched(false);
+    }
+  }, [isOpen]);
 
-    if (!url.trim()) {
-      setError('Please enter a URL');
+  // Helper to fetch with auto-refresh on 401
+  const fetchWithRefresh = async (url: string): Promise<Response> => {
+    let response = await fetch(url, { credentials: 'include' });
+
+    // If unauthorized, try to refresh token and retry
+    if (response.status === 401) {
+      const refreshResponse = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (refreshResponse.ok) {
+        // Retry the original request
+        response = await fetch(url, { credentials: 'include' });
+      }
+    }
+
+    return response;
+  };
+
+  // Debounced search
+  const searchProperties = useCallback(async (query: string) => {
+    if (query.length < 3) {
+      setResults([]);
+      setSearchError('');
+      setHasSearched(false);
       return;
     }
 
-    if (!url.includes('zillow.com')) {
-      setError('Please enter a valid Zillow URL');
-      return;
-    }
+    setIsSearching(true);
+    setSearchError('');
+    setHasSearched(true);
 
-    onAdd(url);
-    setUrl('');
-    setError('');
-    onClose();
+    try {
+      const response = await fetchWithRefresh(`/api/properties/search?query=${encodeURIComponent(query)}&limit=10`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to search properties');
+      }
+
+      // Remove duplicates by propertyId
+      const properties = data.data?.properties || [];
+      const uniqueProperties = properties.filter(
+        (property: SearchResult, index: number, self: SearchResult[]) =>
+          index === self.findIndex((p) => p.propertyId === property.propertyId)
+      );
+      setResults(uniqueProperties);
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : 'Failed to search properties');
+      setResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.length >= 3) {
+        searchProperties(searchQuery);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchProperties]);
+
+  const handleAddProperty = () => {
+    if (selectedProperty) {
+      onAdd(selectedProperty.propertyId, selectedProperty);
+      onClose();
+    }
+  };
+
+  const formatSqft = (sqft: number | null) => {
+    if (!sqft) return null;
+    return new Intl.NumberFormat('en-US').format(sqft);
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add House" size="md">
-      <form onSubmit={handleSubmit}>
-        <p className="text-sm text-gray-600 mb-4">
-          Paste the Zillow URL of the house you want to add to your list.
-        </p>
+    <Modal isOpen={isOpen} onClose={onClose} title="Add House" size="lg">
+      <div className="space-y-6">
+        {/* Search Instructions */}
+        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+          <div className="flex gap-3">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-blue-900">Search for a property</h4>
+              <p className="mt-1 text-sm text-blue-700">
+                Enter a city, ZIP code, or address to find properties for sale.
+                Select the property you want to add to your list.
+              </p>
+            </div>
+          </div>
+        </div>
 
-        <Input
-          label="Zillow URL"
-          placeholder="https://www.zillow.com/homedetails/..."
-          value={url}
-          onChange={(e) => {
-            setUrl(e.target.value);
-            setError('');
-          }}
-          error={error}
-        />
+        {/* Search Input */}
+        <div>
+          <Input
+            label="Search Location"
+            placeholder="Enter city, ZIP code, or address..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSelectedProperty(null);
+            }}
+          />
+          {searchQuery.length > 0 && searchQuery.length < 3 && (
+            <p className="mt-1 text-sm text-gray-500">
+              Type at least 3 characters to search
+            </p>
+          )}
+        </div>
 
-        <div className="flex justify-end gap-3 mt-6">
+        {/* Loading State */}
+        {isSearching && (
+          <div className="flex items-center justify-center py-8">
+            <svg className="animate-spin h-6 w-6 text-[#006AFF]" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <span className="ml-2 text-gray-600">Searching properties...</span>
+          </div>
+        )}
+
+        {/* Error State */}
+        {searchError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex gap-3">
+              <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm text-red-700">{searchError}</p>
+            </div>
+          </div>
+        )}
+
+        {/* No Results */}
+        {!isSearching && hasSearched && results.length === 0 && !searchError && (
+          <div className="text-center py-8">
+            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No properties found</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Try a different search term or location.
+            </p>
+          </div>
+        )}
+
+        {/* Search Results */}
+        {!isSearching && results.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm text-gray-600 font-medium">
+              {results.length} {results.length === 1 ? 'property' : 'properties'} found
+            </p>
+            <div className="max-h-[400px] overflow-y-auto space-y-2 pr-1">
+              {results.map((property) => (
+                <button
+                  key={property.propertyId}
+                  type="button"
+                  onClick={() => setSelectedProperty(property)}
+                  className={`
+                    w-full flex gap-4 p-3 rounded-lg border-2 transition-all text-left
+                    ${selectedProperty?.propertyId === property.propertyId
+                      ? 'border-[#006AFF] bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  {/* Property Image */}
+                  <div className="flex-shrink-0 w-24 h-24 bg-gray-200 rounded-lg overflow-hidden">
+                    {property.image ? (
+                      <img
+                        src={property.image}
+                        alt={property.address}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Property Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-[#006AFF] text-lg">
+                      {property.priceFormatted}
+                    </p>
+                    <p className="text-sm font-medium text-gray-900 truncate mt-1">
+                      {property.address}
+                    </p>
+                    <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
+                      {property.bedrooms !== null && (
+                        <span className="flex items-center gap-1">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 19h16M4 15h16M4 11h16M4 7h16" />
+                          </svg>
+                          {property.bedrooms} bd
+                        </span>
+                      )}
+                      {property.bathrooms !== null && (
+                        <span className="flex items-center gap-1">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h16v4H4V4zm0 6h16v10H4V10z" />
+                          </svg>
+                          {property.bathrooms} ba
+                        </span>
+                      )}
+                      {property.sqft !== null && (
+                        <span className="flex items-center gap-1">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                          </svg>
+                          {formatSqft(property.sqft)} sqft
+                        </span>
+                      )}
+                    </div>
+                    {property.propertyType && (
+                      <span className="inline-block mt-2 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded">
+                        {property.propertyType}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Selection indicator */}
+                  <div className="flex-shrink-0 self-center">
+                    {selectedProperty?.propertyId === property.propertyId ? (
+                      <div className="w-6 h-6 rounded-full bg-[#006AFF] flex items-center justify-center">
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 rounded-full border-2 border-gray-300" />
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex justify-end gap-3 pt-4 border-t">
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit">
-            Add House
+          <Button
+            type="button"
+            onClick={handleAddProperty}
+            disabled={!selectedProperty}
+          >
+            Add to My Houses
           </Button>
         </div>
-      </form>
+      </div>
     </Modal>
   );
 }

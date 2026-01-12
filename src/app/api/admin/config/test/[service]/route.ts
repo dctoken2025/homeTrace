@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { getSessionUser } from '@/lib/auth-session'
 import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
 import Anthropic from '@anthropic-ai/sdk'
+import { getConfig, CONFIG_KEYS } from '@/lib/config'
 
 // POST /api/admin/config/test/[service] - Test API connection
 export async function POST(
@@ -22,13 +23,14 @@ export async function POST(
 
     switch (service) {
       case 'anthropic': {
-        if (!process.env.ANTHROPIC_API_KEY) {
+        const apiKey = await getConfig(CONFIG_KEYS.ANTHROPIC_API_KEY)
+        if (!apiKey) {
           return errorResponse(ErrorCode.VALIDATION_ERROR, 'Anthropic API key not configured')
         }
 
         try {
           const anthropic = new Anthropic({
-            apiKey: process.env.ANTHROPIC_API_KEY,
+            apiKey,
           })
 
           // Simple test call
@@ -48,16 +50,18 @@ export async function POST(
           }
 
           return errorResponse(ErrorCode.EXTERNAL_API_ERROR, 'Unexpected response from Anthropic')
-        } catch (err: any) {
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Failed to connect to Anthropic'
           return errorResponse(
             ErrorCode.EXTERNAL_API_ERROR,
-            err.message || 'Failed to connect to Anthropic'
+            message
           )
         }
       }
 
       case 'resend': {
-        if (!process.env.RESEND_API_KEY) {
+        const apiKey = await getConfig(CONFIG_KEYS.RESEND_API_KEY)
+        if (!apiKey) {
           return errorResponse(ErrorCode.VALIDATION_ERROR, 'Resend API key not configured')
         }
 
@@ -65,7 +69,7 @@ export async function POST(
           // Test the API key by fetching domains
           const response = await fetch('https://api.resend.com/domains', {
             headers: {
-              'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+              'Authorization': `Bearer ${apiKey}`,
             },
           })
 
@@ -81,16 +85,18 @@ export async function POST(
             ErrorCode.EXTERNAL_API_ERROR,
             error.message || 'Failed to connect to Resend'
           )
-        } catch (err: any) {
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Failed to connect to Resend'
           return errorResponse(
             ErrorCode.EXTERNAL_API_ERROR,
-            err.message || 'Failed to connect to Resend'
+            message
           )
         }
       }
 
       case 'realtyApi': {
-        if (!process.env.RAPIDAPI_KEY) {
+        const apiKey = await getConfig(CONFIG_KEYS.RAPIDAPI_KEY)
+        if (!apiKey) {
           return errorResponse(ErrorCode.VALIDATION_ERROR, 'RapidAPI key not configured')
         }
 
@@ -100,7 +106,7 @@ export async function POST(
             'https://realty-in-us.p.rapidapi.com/auto-complete?input=new%20york',
             {
               headers: {
-                'X-RapidAPI-Key': process.env.RAPIDAPI_KEY,
+                'X-RapidAPI-Key': apiKey,
                 'X-RapidAPI-Host': 'realty-in-us.p.rapidapi.com',
               },
             }
@@ -118,10 +124,11 @@ export async function POST(
             ErrorCode.EXTERNAL_API_ERROR,
             error.message || 'Failed to connect to Realty API'
           )
-        } catch (err: any) {
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Failed to connect to Realty API'
           return errorResponse(
             ErrorCode.EXTERNAL_API_ERROR,
-            err.message || 'Failed to connect to Realty API'
+            message
           )
         }
       }

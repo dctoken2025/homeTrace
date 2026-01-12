@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Card from '@/components/ui/Card'
 import { NetworkError } from '@/components/ui/ErrorState'
+import PageHeader, { DashboardIcon } from '@/components/ui/PageHeader'
 
 interface Stats {
   users: {
@@ -74,6 +75,11 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <div className="space-y-6">
+        <PageHeader
+          title="Admin Dashboard"
+          subtitle="System overview and management"
+          icon={<DashboardIcon />}
+        />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {Array.from({ length: 8 }).map((_, i) => (
             <Card key={i}>
@@ -89,13 +95,34 @@ export default function AdminDashboard() {
   }
 
   if (error) {
-    return <NetworkError onRetry={fetchStats} />
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Admin Dashboard"
+          subtitle="System overview and management"
+          icon={<DashboardIcon />}
+        />
+        <NetworkError onRetry={fetchStats} />
+      </div>
+    )
   }
 
   if (!stats) return null
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <PageHeader
+        title="Admin Dashboard"
+        subtitle="System overview and management"
+        icon={<DashboardIcon />}
+        stats={[
+          { label: 'Total Users', value: stats.users.total },
+          { label: 'Houses', value: stats.houses.total },
+          { label: 'Visits', value: stats.visits.total },
+          { label: 'New (7d)', value: `+${stats.users.newLast7Days}` },
+        ]}
+      />
+
       {/* User Stats */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Users</h2>

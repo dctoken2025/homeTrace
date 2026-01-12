@@ -445,3 +445,18 @@ model Session {
   @@index([expiresAt])
   @@index([isRevoked])
 }
+
+// ==================== SYSTEM CONFIGURATION ====================
+
+model SystemConfig {
+  id              String    @id @default(cuid())
+  key             String    @unique  // e.g., "ANTHROPIC_API_KEY", "RESEND_API_KEY", "RAPIDAPI_KEY"
+  value           String    // Encrypted value
+  description     String?   // Human-readable description
+  isSecret        Boolean   @default(true)  // Whether to mask in UI
+  lastUsedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([key])
+}

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { NetworkError } from '@/components/ui/ErrorState'
+import PageHeader, { DashboardIcon } from '@/components/ui/PageHeader'
 import { format, parseISO } from 'date-fns'
 import { BuyerOnboarding, NextStepsChecklist } from '@/components/onboarding'
 
@@ -101,14 +102,15 @@ export default function ClientDashboard() {
   // Loading state
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <div className="h-8 bg-gray-200 rounded w-48 animate-pulse" />
-          <div className="h-5 bg-gray-200 rounded w-64 mt-2 animate-pulse" />
-        </div>
+      <div className="space-y-6">
+        <PageHeader
+          title="Welcome Back!"
+          subtitle="Track your house hunting journey"
+          icon={<DashboardIcon />}
+        />
 
         {/* Stats skeleton */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
               <div className="animate-pulse">
@@ -148,7 +150,12 @@ export default function ClientDashboard() {
   // Error state
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto">
+      <div className="space-y-6">
+        <PageHeader
+          title="Welcome Back!"
+          subtitle="Track your house hunting journey"
+          icon={<DashboardIcon />}
+        />
         <NetworkError onRetry={fetchDashboard} />
       </div>
     )
@@ -181,41 +188,26 @@ export default function ClientDashboard() {
   const firstName = user.name?.split(' ')[0] || 'there'
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="space-y-6">
       {/* Onboarding Modal */}
       {showOnboarding && (
         <BuyerOnboarding userName={user.name || 'Friend'} onComplete={handleOnboardingComplete} />
       )}
 
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Welcome Back, {firstName}!</h1>
-        <p className="text-gray-600">Track your house hunting journey</p>
-      </div>
+      <PageHeader
+        title={`Welcome Back, ${firstName}!`}
+        subtitle="Track your house hunting journey"
+        icon={<DashboardIcon />}
+        stats={[
+          { label: 'Houses', value: stats.totalHouses },
+          { label: 'Visited', value: stats.visitedHouses },
+          { label: 'Recordings', value: stats.totalRecordings },
+          { label: 'Favorites', value: stats.favorites },
+        ]}
+      />
 
       {/* Getting Started Checklist */}
-      <div className="mb-6">
-        <NextStepsChecklist role="BUYER" stats={onboarding} />
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8">
-        <Card>
-          <p className="text-xs sm:text-sm text-gray-500">Houses to Visit</p>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalHouses}</p>
-        </Card>
-        <Card>
-          <p className="text-xs sm:text-sm text-gray-500">Houses Visited</p>
-          <p className="text-2xl sm:text-3xl font-bold text-green-600">{stats.visitedHouses}</p>
-        </Card>
-        <Card>
-          <p className="text-xs sm:text-sm text-gray-500">Recordings</p>
-          <p className="text-2xl sm:text-3xl font-bold" style={{ color: '#006AFF' }}>{stats.totalRecordings}</p>
-        </Card>
-        <Card>
-          <p className="text-xs sm:text-sm text-gray-500">Favorites</p>
-          <p className="text-2xl sm:text-3xl font-bold text-red-500">{stats.favorites}</p>
-        </Card>
-      </div>
+      <NextStepsChecklist role="BUYER" stats={onboarding} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         {/* Upcoming Visits */}

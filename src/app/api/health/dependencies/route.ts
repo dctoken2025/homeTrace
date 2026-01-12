@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getConfig, CONFIG_KEYS } from '@/lib/config'
 
 interface DependencyCheck {
   status: 'healthy' | 'unhealthy' | 'not_configured'
@@ -53,8 +54,9 @@ export async function GET() {
     }
   }
 
-  // Check Anthropic API
-  if (process.env.ANTHROPIC_API_KEY) {
+  // Check Anthropic API (from database config)
+  const anthropicKey = await getConfig(CONFIG_KEYS.ANTHROPIC_API_KEY)
+  if (anthropicKey) {
     totalRequired++
     try {
       const start = Date.now()
@@ -62,7 +64,7 @@ export async function GET() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'x-api-key': anthropicKey,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
@@ -94,13 +96,14 @@ export async function GET() {
     }
   }
 
-  // Check Resend API
-  if (process.env.RESEND_API_KEY) {
+  // Check Resend API (from database config)
+  const resendKey = await getConfig(CONFIG_KEYS.RESEND_API_KEY)
+  if (resendKey) {
     try {
       const start = Date.now()
       const response = await fetch('https://api.resend.com/domains', {
         headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          Authorization: `Bearer ${resendKey}`,
         },
       })
 
@@ -124,15 +127,16 @@ export async function GET() {
     }
   }
 
-  // Check Realty API
-  if (process.env.RAPIDAPI_KEY) {
+  // Check Realty API (from database config)
+  const rapidApiKey = await getConfig(CONFIG_KEYS.RAPIDAPI_KEY)
+  if (rapidApiKey) {
     try {
       const start = Date.now()
       const response = await fetch(
         'https://realty-in-us.p.rapidapi.com/auto-complete?input=test',
         {
           headers: {
-            'X-RapidAPI-Key': process.env.RAPIDAPI_KEY,
+            'X-RapidAPI-Key': rapidApiKey,
             'X-RapidAPI-Host': 'realty-in-us.p.rapidapi.com',
           },
         }
@@ -161,7 +165,7 @@ export async function GET() {
   // Check storage
   try {
     const fs = await import('fs/promises')
-    const storagePath = process.env.STORAGE_PATH || './uploads'
+    const storagePath = await getConfig(CONFIG_KEYS.STORAGE_PATH) || process.env.STORAGE_PATH || './uploads'
 
     const start = Date.now()
 

@@ -1,6 +1,8 @@
 // Email service using Resend
 // In development, emails are logged to console
 
+import { getConfig, CONFIG_KEYS, markConfigUsed } from './config'
+
 interface SendEmailOptions {
   to: string
   subject: string
@@ -14,7 +16,6 @@ interface EmailResult {
   error?: string
 }
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY
 const EMAIL_FROM = process.env.EMAIL_FROM || 'HomeTrace <noreply@hometrace.com>'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
@@ -22,8 +23,10 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
  * Send an email using Resend API
  */
 export async function sendEmail(options: SendEmailOptions): Promise<EmailResult> {
+  const resendApiKey = await getConfig(CONFIG_KEYS.RESEND_API_KEY)
+
   // In development without API key, log to console
-  if (!RESEND_API_KEY || process.env.NODE_ENV === 'development') {
+  if (!resendApiKey || process.env.NODE_ENV === 'development') {
     console.log('=== Email (Development Mode) ===')
     console.log(`To: ${options.to}`)
     console.log(`Subject: ${options.subject}`)
@@ -33,10 +36,13 @@ export async function sendEmail(options: SendEmailOptions): Promise<EmailResult>
   }
 
   try {
+    // Mark as used for tracking
+    await markConfigUsed(CONFIG_KEYS.RESEND_API_KEY).catch(() => {})
+
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Authorization': `Bearer ${resendApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

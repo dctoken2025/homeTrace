@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { realtyAPI, transformPropertyToHouse } from '@/lib/realty-api'
 import { successResponse, errorResponse, ErrorCode, Errors } from '@/lib/api-response'
 import { getSessionUser } from '@/lib/auth-session'
@@ -7,8 +7,7 @@ import { checkRateLimit, getIdentifier } from '@/lib/rate-limit'
 
 // Schema for search query
 const searchSchema = z.object({
-  q: z.string().min(3, 'Query must be at least 3 characters'),
-  type: z.enum(['autocomplete', 'properties']).optional().default('autocomplete'),
+  q: z.string().min(2, 'Query must be at least 2 characters'),
   city: z.string().optional(),
   state_code: z.string().optional(),
   postal_code: z.string().optional(),
@@ -23,13 +22,33 @@ const searchSchema = z.object({
 })
 
 /**
+ * Helper to detect if query is a ZIP code
+ */
+function isZipCode(query: string): boolean {
+  return /^\d{5}(-\d{4})?$/.test(query.trim())
+}
+
+/**
+ * Helper to parse city, state from query like "Atlanta, GA"
+ */
+function parseCityState(query: string): { city: string; stateCode: string } | null {
+  const match = query.match(/^([^,]+),\s*([A-Za-z]{2})$/i)
+  if (match) {
+    return {
+      city: match[1].trim(),
+      stateCode: match[2].toUpperCase(),
+    }
+  }
+  return null
+}
+
+/**
  * GET /api/houses/search
  * Search for houses using the Realty in US API
  *
  * Query params:
- * - q: Search query (required, min 3 chars)
- * - type: 'autocomplete' for address suggestions, 'properties' for property search
- * - city, state_code, postal_code: Location filters (for properties type)
+ * - q: Search query (required, ZIP code or "City, ST")
+ * - city, state_code, postal_code: Location filters (alternative to q)
  * - limit, offset: Pagination
  * - price_min, price_max, beds_min, baths_min, sqft_min, sqft_max: Filters
  */
@@ -59,37 +78,40 @@ export async function GET(request: NextRequest) {
 
     if (!validation.success) {
       return errorResponse(
-          ErrorCode.VALIDATION_ERROR,
-          'Invalid search parameters',
-          validation.error.flatten().fieldErrors
-        )
+        ErrorCode.VALIDATION_ERROR,
+        'Invalid search parameters',
+        validation.error.flatten().fieldErrors
+      )
     }
 
-    const { q, type, ...filters } = validation.data
+    const { q, ...filters } = validation.data
+    const trimmedQuery = q.trim()
 
-    if (type === 'autocomplete') {
-      // Return address suggestions for autocomplete
-      const results = await realtyAPI.autocomplete(q)
+    // Determine search parameters from query
+    let searchCity = filters.city
+    let searchStateCode = filters.state_code
+    let searchPostalCode = filters.postal_code
 
-      return successResponse({
-          suggestions: results.map((r) => ({
-            id: r._id,
-            type: r.area_type,
-            city: r.city,
-            state: r.state_code,
-            postalCode: r.postal_code,
-            address: r.line,
-            fullAddress: r.full_address?.join(', '),
-            coordinates: r.centroid,
-          })),
-        })
+    if (!searchCity && !searchStateCode && !searchPostalCode) {
+      if (isZipCode(trimmedQuery)) {
+        searchPostalCode = trimmedQuery
+      } else {
+        const cityState = parseCityState(trimmedQuery)
+        if (cityState) {
+          searchCity = cityState.city
+          searchStateCode = cityState.stateCode
+        } else {
+          // Assume it's just a city name
+          searchCity = trimmedQuery
+        }
+      }
     }
 
     // Search for properties
     const { properties, count, total } = await realtyAPI.searchProperties({
-      city: filters.city,
-      state_code: filters.state_code,
-      postal_code: filters.postal_code,
+      city: searchCity,
+      state_code: searchStateCode,
+      postal_code: searchPostalCode,
       limit: filters.limit,
       offset: filters.offset,
       price_min: filters.price_min,
@@ -98,6 +120,7 @@ export async function GET(request: NextRequest) {
       baths_min: filters.baths_min,
       sqft_min: filters.sqft_min,
       sqft_max: filters.sqft_max,
+      status: ['for_sale'],
     })
 
     // Transform properties to our format
@@ -107,20 +130,20 @@ export async function GET(request: NextRequest) {
     }))
 
     return successResponse({
-        properties: transformedProperties,
-        pagination: {
-          count,
-          total,
-          limit: filters.limit,
-          offset: filters.offset,
-        },
-      })
+      properties: transformedProperties,
+      pagination: {
+        count,
+        total,
+        limit: filters.limit,
+        offset: filters.offset,
+      },
+    })
   } catch (error) {
     console.error('Houses search error:', error)
 
     return errorResponse(
-        ErrorCode.INTERNAL_ERROR,
-        'Failed to search properties'
-      )
+      ErrorCode.INTERNAL_ERROR,
+      'Failed to search properties'
+    )
   }
 }

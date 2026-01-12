@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
         email: inv.email,
         name: inv.name,
         phone: inv.phone,
+        token: inv.token,
         status: expiredIds.includes(inv.id) ? 'EXPIRED' : inv.status,
         expiresAt: inv.expiresAt,
         acceptedAt: inv.acceptedAt,

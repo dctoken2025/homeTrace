@@ -9,6 +9,8 @@ import { SearchInput, Select } from '@/components/ui/Form'
 import Button from '@/components/ui/Button'
 import { ConfirmModal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
+import PageHeader, { BuildingIcon, PlusIcon } from '@/components/ui/PageHeader'
+import AddHouseModal from '@/components/houses/AddHouseModal'
 
 interface House {
   id: string
@@ -41,14 +43,12 @@ interface HouseBuyer {
 
 interface ApiResponse {
   success: boolean
-  data: {
-    items: HouseBuyer[]
-    pagination: {
-      total: number
-      page: number
-      limit: number
-      totalPages: number
-    }
+  data: HouseBuyer[]
+  meta?: {
+    total: number
+    page: number
+    limit: number
+    totalPages: number
   }
   error?: {
     message: string
@@ -98,6 +98,10 @@ export default function HousesPage() {
   // Match score calculation
   const [isCalculatingScores, setIsCalculatingScores] = useState(false)
 
+  // Add house modal
+  const [addHouseModalOpen, setAddHouseModalOpen] = useState(false)
+  const [isAddingHouse, setIsAddingHouse] = useState(false)
+
   // Calculate match scores for all houses
   const calculateMatchScores = async () => {
     setIsCalculatingScores(true)
@@ -119,6 +123,47 @@ export default function HousesPage() {
       showError(err instanceof Error ? err.message : 'Failed to calculate scores')
     } finally {
       setIsCalculatingScores(false)
+    }
+  }
+
+  // Add house by property ID with property data
+  const handleAddHouse = async (propertyId: string, propertyData: {
+    propertyId: string;
+    listingId: string;
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    price: number;
+    bedrooms: number | null;
+    bathrooms: number | null;
+    sqft: number | null;
+    yearBuilt: number | null;
+    propertyType: string | null;
+    status: string;
+    image: string | null;
+  }) => {
+    setIsAddingHouse(true)
+    try {
+      const response = await fetch('/api/houses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ propertyId, propertyData }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to add house')
+      }
+
+      success('House added successfully!')
+      setAddHouseModalOpen(false)
+      fetchHouses()
+    } catch (err) {
+      showError(err instanceof Error ? err.message : 'Failed to add house')
+    } finally {
+      setIsAddingHouse(false)
     }
   }
 
@@ -147,11 +192,10 @@ export default function HousesPage() {
         throw new Error(data.error?.message || 'Failed to fetch houses')
       }
 
-      setHouses(data.data.items)
-      setTotalPages(data.data.pagination.totalPages)
-      setTotal(data.data.pagination.total)
+      setHouses(data.data || [])
+      setTotalPages(data.meta?.totalPages || 1)
+      setTotal(data.meta?.total || 0)
     } catch (err) {
-      console.error('Fetch houses error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load houses')
     } finally {
       setIsLoading(false)
@@ -240,13 +284,17 @@ export default function HousesPage() {
   // Render loading state
   if (isLoading && houses.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">My Houses</h1>
-          <Button onClick={() => router.push('/client/houses/add')}>
-            Add House
-          </Button>
-        </div>
+      <div className="space-y-6">
+        <PageHeader
+          title="My Houses"
+          subtitle="Browse and manage your saved houses"
+          icon={<BuildingIcon />}
+          action={{
+            label: 'Add House',
+            icon: <PlusIcon />,
+            onClick: () => setAddHouseModalOpen(true),
+          }}
+        />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <HouseCardSkeleton key={i} />
@@ -259,7 +307,17 @@ export default function HousesPage() {
   // Render error state
   if (error && houses.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-6">
+      <div className="space-y-6">
+        <PageHeader
+          title="My Houses"
+          subtitle="Browse and manage your saved houses"
+          icon={<BuildingIcon />}
+          action={{
+            label: 'Add House',
+            icon: <PlusIcon />,
+            onClick: () => setAddHouseModalOpen(true),
+          }}
+        />
         <NetworkError onRetry={fetchHouses} />
       </div>
     )
@@ -268,51 +326,61 @@ export default function HousesPage() {
   // Render empty state
   const showEmptyState = !isLoading && houses.length === 0
 
+  // Calculate favorites count for stats
+  const favoritesCount = houses.filter(h => h.isFavorite).length
+
   return (
-    <div className="container mx-auto px-4 py-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Houses</h1>
-          {total > 0 && (
-            <p className="text-sm text-gray-500 mt-1">
-              {total} house{total !== 1 ? 's' : ''} in your list
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          {houses.length > 0 && (
-            <Button
-              variant="outline"
-              onClick={calculateMatchScores}
-              disabled={isCalculatingScores}
-            >
-              {isCalculatingScores ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Calculating...
-                </>
-              ) : (
-                <>
-                  <svg
+      <PageHeader
+        title="My Houses"
+        subtitle="Browse and manage your saved houses"
+        icon={<BuildingIcon />}
+        stats={total > 0 ? [
+          { label: 'Total', value: total },
+          { label: 'Favorites', value: favoritesCount },
+        ] : undefined}
+        action={{
+          label: 'Add House',
+          icon: <PlusIcon />,
+          onClick: () => setAddHouseModalOpen(true),
+        }}
+      />
+
+      {/* Secondary Actions */}
+      {houses.length > 0 && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            onClick={calculateMatchScores}
+            disabled={isCalculatingScores}
+          >
+            {isCalculatingScores ? (
+              <>
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                Calculating...
+              </>
+            ) : (
+              <>
+                <svg
                     className="w-4 h-4 mr-2"
                     fill="none"
                     stroke="currentColor"
@@ -329,16 +397,12 @@ export default function HousesPage() {
                 </>
               )}
             </Button>
-          )}
-          <Button onClick={() => router.push('/client/houses/add')}>
-            Add House
-          </Button>
         </div>
-      </div>
+      )}
 
       {/* Filters */}
       {(houses.length > 0 || search || status || showFavoritesOnly) && (
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <SearchInput
               placeholder="Search by address, city, or state..."
@@ -401,7 +465,7 @@ export default function HousesPage() {
 
       {/* Empty State */}
       {showEmptyState && !search && !status && !showFavoritesOnly && (
-        <NoHousesEmpty onAddHouse={() => router.push('/client/houses/add')} />
+        <NoHousesEmpty onAddHouse={() => setAddHouseModalOpen(true)} />
       )}
 
       {showEmptyState && (search || status || showFavoritesOnly) && (
@@ -461,6 +525,13 @@ export default function HousesPage() {
         confirmLabel="Remove"
         variant="danger"
         isLoading={isRemoving}
+      />
+
+      {/* Add House Modal */}
+      <AddHouseModal
+        isOpen={addHouseModalOpen}
+        onClose={() => setAddHouseModalOpen(false)}
+        onAdd={handleAddHouse}
       />
     </div>
   )

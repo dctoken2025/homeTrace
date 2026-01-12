@@ -52,7 +52,8 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/dream-house-profile
- * Create or update dream house profile (mark as complete and extract preferences)
+ * Create or update dream house profile
+ * Supports both wizard mode (with profile data) and chat mode (with markComplete)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -67,42 +68,53 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { markComplete } = body
+    const { markComplete, profile: newProfileData } = body
 
     // Get existing profile
     const existingProfile = await prisma.dreamHouseProfile.findUnique({
       where: { buyerId: session.userId },
     })
 
-    if (!existingProfile) {
-      return errorResponse(ErrorCode.NOT_FOUND, 'No profile found. Start a chat first.')
-    }
+    let profileData: DreamHousePreferences | Record<string, unknown> | null = null
 
-    // If marking as complete, extract structured profile from chats
-    let profileData: DreamHousePreferences | null = existingProfile.profile as DreamHousePreferences | null
-    if (markComplete && existingProfile.trainingChats.length > 0) {
+    // If profile data is provided directly (from wizard), use it
+    if (newProfileData) {
+      profileData = newProfileData
+    }
+    // If marking as complete via chat, extract from chat history
+    else if (markComplete && existingProfile?.trainingChats && existingProfile.trainingChats.length > 0) {
       try {
         // Flatten all chat sessions into one history
         const allMessages = existingProfile.trainingChats.flatMap(
-          (session: any) => session.messages || []
+          (chatSession: unknown) => (chatSession as { messages?: unknown[] }).messages || []
         )
 
         if (allMessages.length > 0) {
-          profileData = await extractProfileFromChat(allMessages)
+          profileData = await extractProfileFromChat(allMessages as { role: 'user' | 'assistant', content: string }[])
         }
       } catch (err) {
         console.error('Failed to extract profile:', err)
         // Continue without extracted profile
       }
     }
+    // Otherwise use existing profile data
+    else if (existingProfile) {
+      profileData = existingProfile.profile as DreamHousePreferences | null
+    }
 
-    // Update profile
-    const updated = await prisma.dreamHouseProfile.update({
+    // Upsert profile (create if not exists, update if exists)
+    const updated = await prisma.dreamHouseProfile.upsert({
       where: { buyerId: session.userId },
-      data: {
+      update: {
         profile: profileData ? (profileData as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
-        isComplete: markComplete || existingProfile.isComplete,
+        isComplete: markComplete || existingProfile?.isComplete || false,
         lastUpdatedAt: new Date(),
+      },
+      create: {
+        buyerId: session.userId,
+        profile: profileData ? (profileData as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+        trainingChats: [],
+        isComplete: markComplete || false,
       },
     })
 

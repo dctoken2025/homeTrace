@@ -2,13 +2,31 @@
  * Realty in US API Integration
  * API for searching and fetching US real estate property data
  * Using RapidAPI's Realty in US endpoint
+ *
+ * API Documentation: https://rapidapi.com/apidojo/api/realty-in-us
  */
 
-const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY!
+import { logApiCall } from './api-logger'
+import { getConfig, CONFIG_KEYS, markConfigUsed, getConfigSync } from './config'
+
 const RAPIDAPI_HOST = 'realty-in-us.p.rapidapi.com'
 const BASE_URL = 'https://realty-in-us.p.rapidapi.com'
 
-// Types for API responses
+// Get API key from database or environment
+async function getRapidApiKey(): Promise<string | null> {
+  const key = await getConfig(CONFIG_KEYS.RAPIDAPI_KEY)
+  if (key) {
+    await markConfigUsed(CONFIG_KEYS.RAPIDAPI_KEY).catch(() => {})
+  }
+  return key
+}
+
+// Sync version for initialization checks
+function getRapidApiKeySync(): string | null {
+  return getConfigSync(CONFIG_KEYS.RAPIDAPI_KEY)
+}
+
+// Types for API responses (v3 format)
 export interface PropertyAddress {
   line: string
   city: string
@@ -29,6 +47,61 @@ export interface PropertyPhoto {
   tags?: Array<{ label: string; probability: number }>
 }
 
+// New v3 API response format
+export interface PropertySearchResultV3 {
+  property_id: string
+  listing_id: string
+  status: 'for_sale' | 'sold' | 'off_market' | 'pending'
+  list_price: number
+  list_price_min?: number | null
+  list_price_max?: number | null
+  list_date: string
+  last_sold_date?: string | null
+  last_sold_price?: number | null
+  photo_count?: number
+  primary_photo?: { href: string }
+  location: {
+    address: {
+      line: string
+      city: string
+      state_code: string
+      state: string
+      postal_code: string
+      country: string
+      coordinate?: {
+        lat: number
+        lon: number
+      }
+    }
+  }
+  description?: {
+    type?: string
+    sub_type?: string
+    beds?: number
+    beds_min?: number | null
+    beds_max?: number | null
+    baths?: number
+    baths_min?: number | null
+    baths_max?: number | null
+    baths_full?: number
+    baths_half?: number
+    sqft?: number
+    sqft_min?: number | null
+    sqft_max?: number | null
+    lot_sqft?: number | null
+  }
+  flags?: {
+    is_new_construction?: boolean | null
+    is_foreclosure?: boolean | null
+    is_new_listing?: boolean | null
+    is_coming_soon?: boolean | null
+    is_contingent?: boolean | null
+    is_pending?: boolean | null
+    is_price_reduced?: boolean | null
+  }
+}
+
+// Legacy format for compatibility
 export interface PropertySearchResult {
   property_id: string
   listing_id: string
@@ -120,47 +193,17 @@ export interface AutocompleteResult {
 
 // API Client class
 class RealtyAPI {
-  private headers: HeadersInit
-
-  constructor() {
-    this.headers = {
-      'X-RapidAPI-Key': RAPIDAPI_KEY,
+  private async getHeaders(): Promise<HeadersInit> {
+    const apiKey = await getRapidApiKey()
+    return {
+      'Content-Type': 'application/json',
+      'X-RapidAPI-Key': apiKey || '',
       'X-RapidAPI-Host': RAPIDAPI_HOST,
     }
   }
 
   /**
-   * Autocomplete search for addresses
-   * @param input - Partial address string to search
-   * @returns List of matching locations
-   */
-  async autocomplete(input: string): Promise<AutocompleteResult[]> {
-    if (!RAPIDAPI_KEY) {
-      console.error('RAPIDAPI_KEY not configured')
-      return []
-    }
-
-    try {
-      const params = new URLSearchParams({ input })
-      const response = await fetch(
-        `${BASE_URL}/auto-complete?${params.toString()}`,
-        { headers: this.headers }
-      )
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
-      }
-
-      const data = await response.json()
-      return data.autocomplete || []
-    } catch (error) {
-      console.error('Realty API autocomplete error:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Search for properties by location
+   * Search for properties by location using POST v3 API
    * @param params - Search parameters
    * @returns List of properties matching search criteria
    */
@@ -171,59 +214,120 @@ class RealtyAPI {
     address?: string
     limit?: number
     offset?: number
-    sort?: 'newest' | 'price_low' | 'price_high' | 'sqft_high'
-    status?: 'for_sale' | 'sold' | 'pending'
+    sort?: { direction: 'asc' | 'desc'; field: string }
+    status?: string[]
     price_min?: number
     price_max?: number
     beds_min?: number
     baths_min?: number
     sqft_min?: number
     sqft_max?: number
-    property_type?: string
+    property_type?: string[]
   }): Promise<{
     properties: PropertySearchResult[]
     count: number
     total: number
   }> {
-    if (!RAPIDAPI_KEY) {
+    const apiKey = await getRapidApiKey()
+    if (!apiKey) {
       console.error('RAPIDAPI_KEY not configured')
       return { properties: [], count: 0, total: 0 }
     }
 
+    const startTime = Date.now()
+    const endpoint = '/properties/v3/list'
+
     try {
-      const searchParams = new URLSearchParams()
-
-      // Required params
-      if (params.city) searchParams.append('city', params.city)
-      if (params.state_code) searchParams.append('state_code', params.state_code)
-      if (params.postal_code) searchParams.append('postal_code', params.postal_code)
-
-      // Optional params
-      if (params.limit) searchParams.append('limit', params.limit.toString())
-      if (params.offset) searchParams.append('offset', params.offset.toString())
-      if (params.sort) searchParams.append('sort', params.sort)
-      if (params.status) searchParams.append('status', params.status)
-      if (params.price_min) searchParams.append('price_min', params.price_min.toString())
-      if (params.price_max) searchParams.append('price_max', params.price_max.toString())
-      if (params.beds_min) searchParams.append('beds_min', params.beds_min.toString())
-      if (params.baths_min) searchParams.append('baths_min', params.baths_min.toString())
-      if (params.sqft_min) searchParams.append('sqft_min', params.sqft_min.toString())
-      if (params.sqft_max) searchParams.append('sqft_max', params.sqft_max.toString())
-      if (params.property_type) searchParams.append('type', params.property_type)
-
-      const response = await fetch(
-        `${BASE_URL}/properties/v3/list?${searchParams.toString()}`,
-        { headers: this.headers }
-      )
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
+      // Build request body for POST request
+      const requestBody: Record<string, unknown> = {
+        limit: params.limit || 10,
+        offset: params.offset || 0,
+        status: params.status || ['for_sale'],
+        sort: params.sort || { direction: 'desc', field: 'list_date' },
       }
 
+      // Location params - at least one is required
+      if (params.postal_code) requestBody.postal_code = params.postal_code
+      if (params.city) requestBody.city = params.city
+      if (params.state_code) requestBody.state_code = params.state_code
+
+      // Optional filters
+      if (params.price_min) requestBody.list_price = { ...((requestBody.list_price as object) || {}), min: params.price_min }
+      if (params.price_max) requestBody.list_price = { ...((requestBody.list_price as object) || {}), max: params.price_max }
+      if (params.beds_min) requestBody.beds = { min: params.beds_min }
+      if (params.baths_min) requestBody.baths = { min: params.baths_min }
+      if (params.sqft_min || params.sqft_max) {
+        requestBody.sqft = {
+          ...(params.sqft_min && { min: params.sqft_min }),
+          ...(params.sqft_max && { max: params.sqft_max }),
+        }
+      }
+      if (params.property_type) requestBody.type = params.property_type
+
+      const headers = await this.getHeaders()
+      const response = await fetch(`${BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+      })
+
+      const duration = Date.now() - startTime
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        await logApiCall({
+          service: 'realty_api',
+          endpoint,
+          method: 'POST',
+          status: response.status,
+          duration,
+          errorMessage: errorText || response.statusText,
+        })
+        throw new Error(`API error: ${response.status} - ${errorText || response.statusText}`)
+      }
+
+      await logApiCall({
+        service: 'realty_api',
+        endpoint,
+        method: 'POST',
+        status: 200,
+        duration,
+      })
+
       const data = await response.json()
+      const results: PropertySearchResultV3[] = data.data?.home_search?.results || []
+
+      // Transform v3 results to legacy format for compatibility
+      const properties: PropertySearchResult[] = results.map((r) => ({
+        property_id: r.property_id,
+        listing_id: r.listing_id,
+        status: r.status,
+        list_price: r.list_price,
+        list_date: r.list_date,
+        last_update_date: r.list_date, // v3 doesn't have this field separately
+        property_type: r.description?.type,
+        address: {
+          line: r.location.address.line,
+          city: r.location.address.city,
+          state_code: r.location.address.state_code,
+          state: r.location.address.state,
+          postal_code: r.location.address.postal_code,
+          country: r.location.address.country || 'USA',
+          lat: r.location.address.coordinate?.lat || 0,
+          lon: r.location.address.coordinate?.lon || 0,
+        },
+        photos: r.primary_photo ? [{ href: r.primary_photo.href }] : [],
+        description: r.description ? {
+          beds: r.description.beds || 0,
+          baths: r.description.baths || 0,
+          sqft: r.description.sqft || 0,
+          lot_sqft: r.description.lot_sqft || undefined,
+          type: r.description.type,
+        } : undefined,
+      }))
 
       return {
-        properties: data.data?.home_search?.results || [],
+        properties,
         count: data.data?.home_search?.count || 0,
         total: data.data?.home_search?.total || 0,
       }
@@ -239,27 +343,88 @@ class RealtyAPI {
    * @returns Detailed property information
    */
   async getPropertyDetail(propertyId: string): Promise<PropertyDetail | null> {
-    if (!RAPIDAPI_KEY) {
+    const apiKey = await getRapidApiKey()
+    if (!apiKey) {
       console.error('RAPIDAPI_KEY not configured')
       return null
     }
 
+    const startTime = Date.now()
+    const endpoint = '/properties/v3/detail'
+
     try {
-      const params = new URLSearchParams({ property_id: propertyId })
-      const response = await fetch(
-        `${BASE_URL}/properties/v3/detail?${params.toString()}`,
-        { headers: this.headers }
-      )
+      const headers = await this.getHeaders()
+      const response = await fetch(`${BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ property_id: propertyId }),
+      })
+
+      const duration = Date.now() - startTime
 
       if (!response.ok) {
+        const errorText = await response.text()
+        await logApiCall({
+          service: 'realty_api',
+          endpoint,
+          method: 'POST',
+          status: response.status,
+          duration,
+          errorMessage: response.status === 404 ? 'Not found' : (errorText || response.statusText),
+        })
         if (response.status === 404) {
           return null
         }
-        throw new Error(`API error: ${response.status} ${response.statusText}`)
+        throw new Error(`API error: ${response.status} - ${errorText || response.statusText}`)
       }
 
+      await logApiCall({
+        service: 'realty_api',
+        endpoint,
+        method: 'POST',
+        status: 200,
+        duration,
+      })
+
       const data = await response.json()
-      return data.data?.home || null
+      const home = data.data?.home
+
+      if (!home) {
+        return null
+      }
+
+      // Transform to PropertyDetail format
+      return {
+        property_id: home.property_id,
+        listing_id: home.listing_id || '',
+        status: home.status || 'for_sale',
+        list_price: home.list_price || 0,
+        list_date: home.list_date || '',
+        last_update_date: home.list_date || '',
+        property_type: home.description?.type,
+        address: {
+          line: home.location?.address?.line || '',
+          city: home.location?.address?.city || '',
+          state_code: home.location?.address?.state_code || '',
+          state: home.location?.address?.state || '',
+          postal_code: home.location?.address?.postal_code || '',
+          country: home.location?.address?.country || 'USA',
+          lat: home.location?.address?.coordinate?.lat || 0,
+          lon: home.location?.address?.coordinate?.lon || 0,
+        },
+        photos: home.photos?.map((p: { href: string }) => ({ href: p.href })) || [],
+        description: home.description ? {
+          beds: home.description.beds,
+          baths: home.description.baths,
+          baths_full: home.description.baths_full,
+          baths_half: home.description.baths_half,
+          sqft: home.description.sqft,
+          lot_sqft: home.description.lot_sqft,
+          year_built: home.description.year_built,
+          type: home.description.type,
+          sub_type: home.description.sub_type,
+        } : undefined,
+      }
     } catch (error) {
       console.error('Realty API property detail error:', error)
       throw error
@@ -267,45 +432,35 @@ class RealtyAPI {
   }
 
   /**
-   * Search by exact address to find a specific property
-   * @param address - Full address string
-   * @returns Matching property or null
+   * Search by postal code - simplified method for the search modal
+   * @param postalCode - ZIP code to search
+   * @param limit - Number of results
+   * @returns Properties in that ZIP code
    */
-  async searchByAddress(address: string): Promise<PropertySearchResult | null> {
-    try {
-      // First use autocomplete to get location info
-      const autocompleteResults = await this.autocomplete(address)
+  async searchByPostalCode(postalCode: string, limit = 10): Promise<PropertySearchResult[]> {
+    const { properties } = await this.searchProperties({
+      postal_code: postalCode,
+      limit,
+      status: ['for_sale'],
+    })
+    return properties
+  }
 
-      if (autocompleteResults.length === 0) {
-        return null
-      }
-
-      // Find result with line (specific address)
-      const addressResult = autocompleteResults.find((r) => r.line)
-
-      if (!addressResult || !addressResult.line) {
-        return null
-      }
-
-      // Search with the resolved location
-      const { properties } = await this.searchProperties({
-        city: addressResult.city,
-        state_code: addressResult.state_code,
-        postal_code: addressResult.postal_code,
-        limit: 10,
-      })
-
-      // Find exact match by address line
-      const normalizedAddress = addressResult.line.toLowerCase().trim()
-      const match = properties.find(
-        (p) => p.address.line.toLowerCase().trim() === normalizedAddress
-      )
-
-      return match || null
-    } catch (error) {
-      console.error('Realty API search by address error:', error)
-      throw error
-    }
+  /**
+   * Search by city and state - simplified method
+   * @param city - City name
+   * @param stateCode - State code (e.g., 'GA', 'CA')
+   * @param limit - Number of results
+   * @returns Properties in that city
+   */
+  async searchByCity(city: string, stateCode: string, limit = 10): Promise<PropertySearchResult[]> {
+    const { properties } = await this.searchProperties({
+      city,
+      state_code: stateCode,
+      limit,
+      status: ['for_sale'],
+    })
+    return properties
   }
 }
 

@@ -4,8 +4,11 @@ import { useState, useEffect, useCallback } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import PageHeader, { UsersIcon, PlusIcon, LinkIcon } from '@/components/ui/PageHeader';
+import InviteClientModal from '@/components/realtor/InviteClientModal';
+import LinkClientModal from '@/components/realtor/LinkClientModal';
+import ClientDetailModal from '@/components/realtor/ClientDetailModal';
 import { format } from 'date-fns';
-import Link from 'next/link';
 
 interface ClientStats {
   housesCount: number;
@@ -36,59 +39,29 @@ interface Client {
   stats: ClientStats;
 }
 
-interface ClientDetail {
-  connection: {
-    id: string;
-    connectedAt: string;
-  };
-  buyer: {
-    id: string;
-    name: string;
-    email: string;
-    phone: string | null;
-  };
-  houses: Array<{
-    id: string;
-    isFavorite: boolean;
-    matchScore: number | null;
-    notes: string | null;
-    realtorNotes: string | null;
-    house: {
-      id: string;
-      address: string;
-      city: string;
-      state: string;
-      price: number | null;
-    };
-  }>;
-  visits: Array<{
-    id: string;
-    status: string;
-    scheduledAt: string;
-    completedAt: string | null;
-    overallImpression: string | null;
-    wouldBuy: boolean | null;
-    house: {
-      id: string;
-      address: string;
-      city: string;
-    };
-  }>;
-  dreamHouseProfile: any | null;
-  reports: Array<{
-    id: string;
-    status: string;
-    housesAnalyzed: number;
-    createdAt: string;
-  }>;
+interface PendingInvite {
+  id: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  token: string;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
 }
 
 export default function RealtorClients() {
   const [clients, setClients] = useState<Client[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedClient, setSelectedClient] = useState<ClientDetail | null>(null);
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Modal states
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [inviteInitialEmail, setInviteInitialEmail] = useState('');
 
   const fetchClients = useCallback(async () => {
     try {
@@ -107,265 +80,275 @@ export default function RealtorClients() {
     }
   }, [searchQuery]);
 
-  useEffect(() => {
-    fetchClients();
-  }, [fetchClients]);
-
-  const fetchClientDetail = async (buyerId: string) => {
-    setIsLoadingDetail(true);
+  const fetchPendingInvites = useCallback(async () => {
     try {
-      const response = await fetch(`/api/clients/${buyerId}`);
+      const response = await fetch('/api/invites?status=PENDING');
       if (response.ok) {
         const data = await response.json();
-        setSelectedClient(data.data);
+        setPendingInvites(data.data?.invites || []);
       }
     } catch (err) {
-      console.error('Failed to fetch client detail:', err);
-    } finally {
-      setIsLoadingDetail(false);
+      console.error('Failed to fetch pending invites:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchClients();
+    fetchPendingInvites();
+  }, [fetchClients, fetchPendingInvites]);
+
+  const handleClientClick = (buyerId: string) => {
+    setSelectedClientId(buyerId);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleInviteInstead = (email: string) => {
+    setInviteInitialEmail(email);
+    setIsInviteModalOpen(true);
+  };
+
+  const handleModalSuccess = () => {
+    fetchClients();
+    fetchPendingInvites();
+  };
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    if (!confirm('Are you sure you want to revoke this invitation?')) return;
+
+    try {
+      const response = await fetch(`/api/invites/${inviteId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        fetchPendingInvites();
+      }
+    } catch (err) {
+      console.error('Failed to revoke invite:', err);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      SCHEDULED: 'bg-blue-100 text-blue-800',
-      IN_PROGRESS: 'bg-yellow-100 text-yellow-800',
-      COMPLETED: 'bg-green-100 text-green-800',
-      CANCELLED: 'bg-gray-100 text-gray-800',
-    };
-
-    return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${styles[status] || 'bg-gray-100 text-gray-800'}`}>
-        {status.replace('_', ' ')}
-      </span>
-    );
-  };
-
-  const getImpressionIcon = (impression: string | null) => {
-    if (!impression) return null;
-    const icons: Record<string, string> = {
-      LOVED: '❤️',
-      LIKED: '👍',
-      NEUTRAL: '😐',
-      DISLIKED: '👎',
-    };
-    return icons[impression] || null;
+  const copyInviteLink = (token: string) => {
+    const link = `${window.location.origin}/accept-invite?token=${token}`;
+    navigator.clipboard.writeText(link);
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
-          <p className="text-gray-600">View and manage your connected clients</p>
-        </div>
-        <Link href="/realtor/invite">
-          <Button>
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Invite Client
-          </Button>
-        </Link>
+    <div className="space-y-6">
+      {/* Header */}
+      <PageHeader
+        title="Clients"
+        subtitle="View and manage your connected clients"
+        icon={<UsersIcon />}
+        stats={clients.length > 0 ? [
+          { label: 'Total', value: clients.length },
+        ] : undefined}
+        secondaryAction={{
+          label: 'Link Existing',
+          icon: <LinkIcon />,
+          onClick: () => setIsLinkModalOpen(true),
+        }}
+        action={{
+          label: 'Invite Client',
+          icon: <PlusIcon />,
+          onClick: () => setIsInviteModalOpen(true),
+        }}
+      />
+
+      {/* Search */}
+      <div>
+        <Input
+          placeholder="Search clients by name or email..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="max-w-md"
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Clients List */}
-        <div className="lg:col-span-1">
-          <Card>
-            <div className="mb-4">
-              <Input
-                placeholder="Search clients..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            {isLoading ? (
-              <div className="text-center py-8 text-gray-500">Loading...</div>
-            ) : clients.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                {searchQuery ? 'No clients found' : 'No clients yet. Invite your first client!'}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {clients.map((client) => (
+      {/* Pending Invites Section */}
+      {pendingInvites.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+            Pending Invitations ({pendingInvites.length})
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pendingInvites.map((invite) => (
+              <Card key={invite.id} className="border-dashed border-2 border-gray-200 bg-gray-50/50">
+                <div className="flex items-center gap-3 mb-3">
                   <div
-                    key={client.id}
-                    onClick={() => fetchClientDetail(client.buyer.id)}
-                    className="p-3 border rounded-lg cursor-pointer transition-colors"
-                    style={
-                      selectedClient?.buyer.id === client.buyer.id
-                        ? { borderColor: '#006AFF', background: '#E3F2FD' }
-                        : { borderColor: '#E5E7EB' }
-                    }
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-amber-100"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: '#E3F2FD' }}>
-                        <span className="font-medium" style={{ color: '#006AFF' }}>
-                          {client.buyer.name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{client.buyer.name}</p>
-                        <p className="text-sm text-gray-500 truncate">{client.buyer.email}</p>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                      <span>{client.stats.housesCount} houses</span>
-                      <span>{client.stats.completedVisits}/{client.stats.visitsCount} visits</span>
-                    </div>
+                    <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 truncate">
+                      {invite.name || 'No name provided'}
+                    </p>
+                    <p className="text-sm text-gray-500 truncate">{invite.email}</p>
+                  </div>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                    Pending
+                  </span>
+                </div>
+
+                <div className="text-xs text-gray-500 mb-3">
+                  <p>Sent {format(new Date(invite.createdAt), 'MMM d, yyyy')}</p>
+                  <p>Expires {format(new Date(invite.expiresAt), 'MMM d, yyyy')}</p>
+                </div>
+
+                <div className="flex gap-2 pt-2 border-t border-gray-200">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => copyInviteLink(invite.token)}
+                  >
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copy Link
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => handleRevokeInvite(invite.id)}
+                  >
+                    Revoke
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
+      )}
 
-        {/* Client Detail */}
-        <div className="lg:col-span-2">
-          {selectedClient ? (
-            <div className="space-y-6">
-              {/* Client Info */}
-              <Card>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: '#E3F2FD' }}>
-                      <span className="text-2xl font-medium" style={{ color: '#006AFF' }}>
-                        {selectedClient.buyer.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        {selectedClient.buyer.name}
-                      </h2>
-                      <p className="text-gray-600">{selectedClient.buyer.email}</p>
-                      {selectedClient.buyer.phone && (
-                        <p className="text-sm text-gray-500">{selectedClient.buyer.phone}</p>
-                      )}
-                      <p className="text-xs text-gray-400 mt-1">
-                        Connected {format(new Date(selectedClient.connection.connectedAt), 'MMM d, yyyy')}
-                      </p>
-                    </div>
-                  </div>
+      {/* Connected Clients Section */}
+      {(clients.length > 0 || pendingInvites.length > 0) && !isLoading && (
+        <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+          Connected Clients ({clients.length})
+        </h2>
+      )}
+
+      {/* Clients Grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-gray-200 rounded-full" />
+                <div className="flex-1">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+                  <div className="h-3 bg-gray-200 rounded w-1/2" />
                 </div>
-
-                {/* Privacy sharing status */}
-                <div className="mt-4 pt-4 border-t">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Shared with you:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedClient.dreamHouseProfile && (
-                      <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                        Dream House Profile
-                      </span>
-                    )}
-                    {selectedClient.reports.length > 0 && (
-                      <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                        AI Reports
-                      </span>
-                    )}
-                    {!selectedClient.dreamHouseProfile && selectedClient.reports.length === 0 && (
-                      <span className="text-xs text-gray-500">
-                        No shared data yet
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </Card>
-
-              {/* Houses */}
-              <Card>
-                <h3 className="font-semibold text-gray-900 mb-4">
-                  Houses ({selectedClient.houses.length})
-                </h3>
-                {selectedClient.houses.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No houses assigned yet</p>
-                ) : (
-                  <div className="space-y-3">
-                    {selectedClient.houses.map((hb) => (
-                      <div
-                        key={hb.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium text-gray-900">{hb.house.address}</p>
-                          <p className="text-sm text-gray-600">
-                            {hb.house.city}, {hb.house.state}
-                            {hb.house.price && (
-                              <> &middot; ${hb.house.price.toLocaleString()}</>
-                            )}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {hb.isFavorite && (
-                            <span className="text-red-500" title="Favorite">❤️</span>
-                          )}
-                          {hb.matchScore && (
-                            <span className="text-xs px-2 py-1 rounded-full" style={{ background: '#E3F2FD', color: '#006AFF' }}>
-                              {Math.round(hb.matchScore)}% match
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              {/* Recent Visits */}
-              <Card>
-                <h3 className="font-semibold text-gray-900 mb-4">
-                  Recent Visits ({selectedClient.visits.length})
-                </h3>
-                {selectedClient.visits.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No visits scheduled yet</p>
-                ) : (
-                  <div className="space-y-3">
-                    {selectedClient.visits.map((visit) => (
-                      <div
-                        key={visit.id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium text-gray-900">{visit.house.address}</p>
-                          <p className="text-sm text-gray-600">
-                            {format(new Date(visit.scheduledAt), 'MMM d, yyyy h:mm a')}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {getImpressionIcon(visit.overallImpression)}
-                          {visit.wouldBuy && (
-                            <span className="text-green-500" title="Would buy">✓</span>
-                          )}
-                          {getStatusBadge(visit.status)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              {/* Dream House Profile Preview */}
-              {selectedClient.dreamHouseProfile && (
-                <Card>
-                  <h3 className="font-semibold text-gray-900 mb-4">Dream House Profile</h3>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <pre className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {JSON.stringify(selectedClient.dreamHouseProfile, null, 2)}
-                    </pre>
-                  </div>
-                </Card>
-              )}
+              </div>
+              <div className="h-3 bg-gray-200 rounded w-full mb-2" />
+              <div className="h-3 bg-gray-200 rounded w-2/3" />
+            </Card>
+          ))}
+        </div>
+      ) : clients.length === 0 ? (
+        <Card className="text-center py-12">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: '#E3F2FD' }}>
+            <svg className="w-8 h-8" style={{ color: '#006AFF' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {searchQuery ? 'No clients found' : 'No clients yet'}
+          </h3>
+          <p className="text-gray-500 mb-6">
+            {searchQuery
+              ? 'Try adjusting your search query'
+              : 'Invite your first client to get started'}
+          </p>
+          {!searchQuery && (
+            <div className="flex gap-3 justify-center">
+              <Button variant="outline" onClick={() => setIsLinkModalOpen(true)}>
+                Link Existing Client
+              </Button>
+              <Button onClick={() => setIsInviteModalOpen(true)}>
+                Invite New Client
+              </Button>
             </div>
-          ) : (
-            <Card>
-              <div className="text-center py-12 text-gray-500">
-                {isLoadingDetail ? 'Loading...' : 'Select a client to view details'}
+          )}
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {clients.map((client) => (
+            <Card
+              key={client.id}
+              className="cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handleClientClick(client.buyer.id)}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ background: '#E3F2FD' }}
+                >
+                  <span className="text-lg font-medium" style={{ color: '#006AFF' }}>
+                    {client.buyer.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 truncate">{client.buyer.name}</p>
+                  <p className="text-sm text-gray-500 truncate">{client.buyer.email}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+                <div className="flex items-center gap-1">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  <span>{client.stats.housesCount} houses</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  <span>{client.stats.completedVisits}/{client.stats.visitsCount} visits</span>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-gray-100">
+                <p className="text-xs text-gray-400">
+                  Connected {format(new Date(client.connectedAt), 'MMM d, yyyy')}
+                </p>
               </div>
             </Card>
-          )}
+          ))}
         </div>
-      </div>
+      )}
+
+      {/* Modals */}
+      <InviteClientModal
+        isOpen={isInviteModalOpen}
+        onClose={() => {
+          setIsInviteModalOpen(false);
+          setInviteInitialEmail('');
+        }}
+        onSuccess={handleModalSuccess}
+        initialEmail={inviteInitialEmail}
+      />
+
+      <LinkClientModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        onSuccess={handleModalSuccess}
+        onInviteInstead={handleInviteInstead}
+      />
+
+      <ClientDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedClientId(null);
+        }}
+        clientId={selectedClientId}
+      />
     </div>
   );
 }

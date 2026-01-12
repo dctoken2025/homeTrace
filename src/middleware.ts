@@ -11,6 +11,7 @@ const PUBLIC_ROUTES = [
   '/sign-up/realtor',
   '/reset-password',
   '/invite',
+  '/accept-invite',
 ]
 
 // API routes that don't require authentication
@@ -21,6 +22,7 @@ const PUBLIC_API_ROUTES = [
   '/api/auth/reset-password',
   '/api/auth/refresh',
   '/api/invites/validate',
+  '/api/invites/accept',
 ]
 
 // Routes restricted to specific roles

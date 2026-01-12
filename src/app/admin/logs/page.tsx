@@ -5,6 +5,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { Select } from '@/components/ui/Form'
 import { NetworkError } from '@/components/ui/ErrorState'
+import PageHeader, { LogsIcon } from '@/components/ui/PageHeader'
 import { format, parseISO } from 'date-fns'
 
 interface ApiLog {
@@ -112,11 +113,29 @@ export default function AdminLogsPage() {
   ]
 
   if (error && logs.length === 0) {
-    return <NetworkError onRetry={fetchLogs} />
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="API Logs"
+          subtitle="Monitor API requests and system activity"
+          icon={<LogsIcon />}
+        />
+        <NetworkError onRetry={fetchLogs} />
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="API Logs"
+        subtitle="Monitor API requests and system activity"
+        icon={<LogsIcon />}
+        stats={[
+          { label: 'Total Logs', value: total },
+        ]}
+      />
+
       {/* Filters */}
       <Card>
         <div className="flex flex-col sm:flex-row gap-4">
