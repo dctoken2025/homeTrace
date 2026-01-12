@@ -151,10 +151,35 @@ function AcceptInviteContent() {
             </svg>
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Sign Up to Accept</h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 mb-4">
             Create an account or sign in to connect with {invite?.realtor.name}.
           </p>
-          <div className="space-y-3">
+
+          <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+            <p className="text-sm font-medium text-gray-900 mb-2">With HomeTrace you can:</p>
+            <ul className="text-sm text-gray-600 space-y-2">
+              <li className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Browse homes your realtor shares with you
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Schedule and manage property visits
+              </li>
+              <li className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Rate and compare properties easily
+              </li>
+            </ul>
+          </div>
+
+          <div className="space-y-4">
             <Link href={`/sign-up?invite=${token}`}>
               <Button className="w-full">Create Account</Button>
             </Link>
@@ -162,6 +187,10 @@ function AcceptInviteContent() {
               <Button variant="outline" className="w-full">Sign In</Button>
             </Link>
           </div>
+
+          <p className="text-xs text-gray-400 mt-6">
+            By creating an account, you agree to our Terms of Service and Privacy Policy.
+          </p>
         </Card>
       </div>
     );
