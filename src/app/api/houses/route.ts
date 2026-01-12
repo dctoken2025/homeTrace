@@ -293,9 +293,11 @@ export async function POST(request: NextRequest) {
       where: { externalId: propertyId },
     })
 
+    let needsDetailSync = false
+
     if (!house) {
-      // If property data was provided from search, use it directly
       if (propertyData) {
+        // Create house with basic data from search results (fast)
         house = await prisma.house.create({
           data: {
             externalId: propertyData.propertyId,
@@ -314,15 +316,16 @@ export async function POST(request: NextRequest) {
             listingStatus: propertyData.status || 'for_sale',
             lastSyncedAt: new Date(),
             images: propertyData.image ? [propertyData.image] : [],
-            rawApiData: propertyData as unknown as Prisma.InputJsonValue,
+            rawApiData: null, // Will be populated by background sync
           },
         })
+        needsDetailSync = true // Flag to sync rich data in background
       } else {
-        // Fallback: Fetch from external API
+        // No search data provided - must fetch from API
         const propertyDetail = await realtyAPI.getPropertyDetail(propertyId)
 
         if (!propertyDetail) {
-          return errorResponse(ErrorCode.NOT_FOUND, `Property not found in external API (ID: ${propertyId})`)
+          return errorResponse(ErrorCode.NOT_FOUND, `Property not found (ID: ${propertyId})`)
         }
 
         const houseData = transformPropertyToHouse(propertyDetail)
@@ -349,6 +352,42 @@ export async function POST(request: NextRequest) {
           },
         })
       }
+    } else if (!house.rawApiData) {
+      // House exists but doesn't have rich data yet
+      needsDetailSync = true
+    }
+
+    // Background sync for rich property details (non-blocking)
+    if (needsDetailSync && house) {
+      const houseId = house.id
+      const externalId = house.externalId
+
+      // Fire and forget - don't await
+      (async () => {
+        try {
+          if (!externalId) return
+
+          const propertyDetail = await realtyAPI.getPropertyDetail(externalId)
+          if (!propertyDetail) return
+
+          const houseData = transformPropertyToHouse(propertyDetail)
+
+          await prisma.house.update({
+            where: { id: houseId },
+            data: {
+              latitude: houseData.latitude,
+              longitude: houseData.longitude,
+              images: houseData.images,
+              rawApiData: houseData.rawApiData as unknown as Prisma.InputJsonValue,
+              lastSyncedAt: new Date(),
+            },
+          })
+
+          console.log(`Background sync completed for house ${houseId}`)
+        } catch (err) {
+          console.error(`Background sync failed for house ${houseId}:`, err)
+        }
+      })()
     }
 
     // Check if buyer already has this house
