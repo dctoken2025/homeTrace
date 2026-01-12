@@ -63,7 +63,7 @@ export default function RealtorRoute() {
         throw new Error(data.error?.message || 'Failed to fetch visits')
       }
 
-      const fetchedVisits = data.data.items || []
+      const fetchedVisits = data.data || []
       setVisits(fetchedVisits)
 
       // Set default selected date to first date with visits

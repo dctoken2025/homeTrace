@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     } else if (session.role === 'REALTOR') {
       // Realtors see visits of their connected buyers
       const connectedBuyers = await prisma.buyerRealtor.findMany({
-        where: { realtorId: session.userId },
+        where: { realtorId: session.userId, deletedAt: null },
         select: { buyerId: true },
       })
       where.buyerId = { in: connectedBuyers.map((c) => c.buyerId) }
@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
       recordingCount: v._count.recordings,
     }))
 
-    return paginatedResponse(items, total, page, limit)
+    return paginatedResponse(items, page, limit, total)
   } catch (error) {
     console.error('List visits error:', error)
     return errorResponse(ErrorCode.INTERNAL_ERROR, 'Failed to list visits')

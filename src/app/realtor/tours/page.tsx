@@ -97,8 +97,8 @@ export default function RealtorTours() {
       const response = await fetch('/api/houses');
       if (response.ok) {
         const data = await response.json();
-        // API returns paginated response with items containing { house: {...} }
-        const items = data.data?.items || [];
+        // API returns paginated response: { data: [{ house: {...} }, ...] }
+        const items = data.data || [];
         setHouses(items.map((item: { house: House }) => item.house));
       }
     } catch (err) {
