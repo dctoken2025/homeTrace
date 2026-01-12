@@ -38,13 +38,25 @@ interface Visit {
   recordingCount: number
 }
 
+interface VisitSuggestion {
+  id: string
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'
+  suggestedAt: string
+  message: string | null
+  createdAt: string
+  house: House
+  buyer: Buyer
+}
+
 export default function RealtorSchedule() {
   const [visits, setVisits] = useState<Visit[]>([])
+  const [suggestions, setSuggestions] = useState<VisitSuggestion[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'visits' | 'suggestions'>('visits')
 
-  // Fetch visits
-  const fetchVisits = useCallback(async () => {
+  // Fetch visits and suggestions
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -60,25 +72,32 @@ export default function RealtorSchedule() {
         limit: '100',
       })
 
-      const response = await fetch(`/api/visits?${params.toString()}`)
-      const data = await response.json()
+      // Fetch both visits and suggestions in parallel
+      const [visitsResponse, suggestionsResponse] = await Promise.all([
+        fetch(`/api/visits?${params.toString()}`),
+        fetch(`/api/visits/suggestions?${params.toString()}`),
+      ])
 
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Failed to fetch visits')
+      const visitsData = await visitsResponse.json()
+      const suggestionsData = await suggestionsResponse.json()
+
+      if (!visitsResponse.ok) {
+        throw new Error(visitsData.error?.message || 'Failed to fetch visits')
       }
 
-      setVisits(data.data.items || [])
+      setVisits(visitsData.data.items || [])
+      setSuggestions(suggestionsData.data?.items || [])
     } catch (err) {
-      console.error('Fetch visits error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load visits')
+      console.error('Fetch data error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    fetchVisits()
-  }, [fetchVisits])
+    fetchData()
+  }, [fetchData])
 
   // Group visits by date
   const groupedVisits = visits.reduce(
@@ -124,6 +143,52 @@ export default function RealtorSchedule() {
 
   const scheduledCount = visits.filter(v => v.status === 'SCHEDULED').length
   const completedCount = visits.filter(v => v.status === 'COMPLETED').length
+  const pendingSuggestionsCount = suggestions.filter(s => s.status === 'PENDING').length
+
+  // Group suggestions by date
+  const groupedSuggestions = suggestions.reduce(
+    (acc, suggestion) => {
+      const dateKey = format(parseISO(suggestion.suggestedAt), 'yyyy-MM-dd')
+      if (!acc[dateKey]) {
+        acc[dateKey] = []
+      }
+      acc[dateKey].push(suggestion)
+      return acc
+    },
+    {} as Record<string, VisitSuggestion[]>
+  )
+
+  const sortedSuggestionDates = Object.keys(groupedSuggestions).sort()
+
+  const getSuggestionStatusColor = (status: string, suggestedAt: string) => {
+    const isExpired = status === 'PENDING' && new Date(suggestedAt) < new Date()
+    if (isExpired) return 'bg-gray-50 border-gray-200'
+    switch (status) {
+      case 'ACCEPTED':
+        return 'bg-green-50 border-green-200'
+      case 'REJECTED':
+        return 'bg-red-50 border-red-200'
+      case 'EXPIRED':
+        return 'bg-gray-50 border-gray-200'
+      default:
+        return 'bg-amber-50 border-amber-200'
+    }
+  }
+
+  const getSuggestionBadgeColor = (status: string, suggestedAt: string) => {
+    const isExpired = status === 'PENDING' && new Date(suggestedAt) < new Date()
+    if (isExpired) return 'bg-gray-100 text-gray-700'
+    switch (status) {
+      case 'ACCEPTED':
+        return 'bg-green-100 text-green-700'
+      case 'REJECTED':
+        return 'bg-red-100 text-red-700'
+      case 'EXPIRED':
+        return 'bg-gray-100 text-gray-700'
+      default:
+        return 'bg-amber-100 text-amber-700'
+    }
+  }
 
   // Loading state
   if (loading) {

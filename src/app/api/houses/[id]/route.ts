@@ -97,6 +97,33 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     })
 
+    // Get visit suggestions for this house and buyer (for realtors)
+    let suggestions: Array<{
+      id: string
+      status: string
+      suggestedAt: Date
+      message: string | null
+      createdAt: Date
+    }> = []
+
+    if (session.role === 'REALTOR' || session.role === 'ADMIN') {
+      suggestions = await prisma.visitSuggestion.findMany({
+        where: {
+          houseId: houseBuyer.houseId,
+          buyerId: houseBuyer.buyerId,
+          deletedAt: null,
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          status: true,
+          suggestedAt: true,
+          message: true,
+          createdAt: true,
+        },
+      })
+    }
+
     // Extract rich data from rawApiData if available
     const rawData = houseBuyer.house.rawApiData as Record<string, unknown> | null
     const description = rawData?.description as Record<string, unknown> | undefined
@@ -230,13 +257,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           bedrooms: houseBuyer.house.bedrooms,
           bathrooms: houseBuyer.house.bathrooms,
           sqft: houseBuyer.house.sqft,
+          squareFeet: houseBuyer.house.sqft, // Alias for frontend compatibility
           yearBuilt: houseBuyer.house.yearBuilt,
           propertyType: houseBuyer.house.propertyType,
           listingStatus: houseBuyer.house.listingStatus,
           images: houseBuyer.house.images,
+          photos: houseBuyer.house.images, // Alias for frontend compatibility
           lastSyncedAt: houseBuyer.house.lastSyncedAt,
+          lastUpdated: houseBuyer.house.lastSyncedAt, // Alias for frontend compatibility
           // Basic rich data from description
           lotSqft: (description?.lot_sqft as number) ?? null,
+          lotSize: (description?.lot_sqft as number) ?? null, // Alias for frontend compatibility
           garage: (description?.garage as number) ?? null,
           stories: (description?.stories as number) ?? null,
           pool: (description?.pool as boolean) ?? null,
@@ -288,6 +319,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           notes: v.notes,
           recordingCount: v.recordings.length,
           recordings: v.recordings,
+        })),
+        suggestions: suggestions.map((s) => ({
+          id: s.id,
+          status: s.status,
+          suggestedAt: s.suggestedAt,
+          message: s.message,
+          createdAt: s.createdAt,
         })),
       })
   } catch (error) {
