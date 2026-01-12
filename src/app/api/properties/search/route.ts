@@ -121,6 +121,9 @@ export async function GET(request: NextRequest) {
       propertyType: p.description?.type || p.property_type || null,
       status: p.status,
       image: getHighResImage(p.photos?.[0]?.href),
+      // Coordinates from Realtor API for route optimization
+      latitude: p.address.lat || null,
+      longitude: p.address.lon || null,
     }))
 
     return successResponse({

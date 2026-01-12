@@ -31,6 +31,9 @@ const propertyDataSchema = z.object({
   propertyType: z.string().nullable().optional(),
   status: z.string().optional(),
   image: z.string().nullable().optional(),
+  // Coordinates from Realtor API (optional - will use geocoding as fallback)
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
 })
 
 // Schema for adding a house
@@ -298,13 +301,30 @@ export async function POST(request: NextRequest) {
 
     if (!house) {
       if (propertyData) {
-        // Try to geocode the address first
-        const geocodeResult = await geocodeAddress(
-          propertyData.address,
-          propertyData.city,
-          propertyData.state,
-          propertyData.zipCode
-        )
+        // Use coordinates from Realtor API if available, otherwise geocode
+        let latitude = propertyData.latitude ?? null
+        let longitude = propertyData.longitude ?? null
+
+        // Only geocode if API didn't provide coordinates
+        if (latitude === null || longitude === null || (latitude === 0 && longitude === 0)) {
+          console.log(`House missing coordinates from API, attempting geocoding...`)
+          const geocodeResult = await geocodeAddress(
+            propertyData.address,
+            propertyData.city,
+            propertyData.state,
+            propertyData.zipCode
+          )
+
+          if (geocodeResult) {
+            latitude = geocodeResult.latitude
+            longitude = geocodeResult.longitude
+            console.log(`Geocoded via ${geocodeResult.source}: ${latitude}, ${longitude}`)
+          } else {
+            console.warn(`Could not geocode - route optimization will be unavailable`)
+          }
+        } else {
+          console.log(`Using coordinates from Realtor API: ${latitude}, ${longitude}`)
+        }
 
         // Create house with basic data from search results (fast)
         house = await prisma.house.create({
@@ -314,8 +334,8 @@ export async function POST(request: NextRequest) {
             city: propertyData.city,
             state: propertyData.state,
             zipCode: propertyData.zipCode,
-            latitude: geocodeResult?.latitude ?? null,
-            longitude: geocodeResult?.longitude ?? null,
+            latitude,
+            longitude,
             price: propertyData.price,
             bedrooms: propertyData.bedrooms ?? null,
             bathrooms: propertyData.bathrooms ?? null,
@@ -327,12 +347,6 @@ export async function POST(request: NextRequest) {
             images: propertyData.image ? [propertyData.image] : [],
           },
         })
-
-        if (geocodeResult) {
-          console.log(`House ${house.id} geocoded via ${geocodeResult.source}: ${geocodeResult.latitude}, ${geocodeResult.longitude}`)
-        } else {
-          console.warn(`House ${house.id} could not be geocoded - route optimization will be unavailable`)
-        }
 
         needsDetailSync = true // Flag to sync rich data in background
       } else {

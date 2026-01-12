@@ -142,6 +142,9 @@ export default function HousesPage() {
     propertyType: string | null;
     status: string;
     image: string | null;
+    // Coordinates for route optimization
+    latitude: number | null;
+    longitude: number | null;
   }) => {
     setIsAddingHouse(true)
     try {

@@ -198,6 +198,9 @@ export default function RealtorHouses() {
     propertyType: string | null;
     status: string;
     image: string | null;
+    // Coordinates for route optimization
+    latitude: number | null;
+    longitude: number | null;
   }) => {
     setIsAdding(true)
 

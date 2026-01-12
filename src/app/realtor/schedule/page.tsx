@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
-import Card from '@/components/ui/Card'
+import { useRouter } from 'next/navigation'
+import { startOfMonth, endOfMonth, format } from 'date-fns'
+import Calendar, { CalendarEvent, CalendarSkeleton } from '@/components/Calendar'
+import Modal from '@/components/ui/Modal'
+import Button from '@/components/ui/Button'
 import { NetworkError } from '@/components/ui/ErrorState'
 import PageHeader, { CalendarIcon } from '@/components/ui/PageHeader'
-import { format, parseISO, startOfMonth, endOfMonth, addMonths } from 'date-fns'
 
 interface House {
   id: string
@@ -24,422 +26,331 @@ interface Buyer {
   email: string
 }
 
-interface Visit {
-  id: string
-  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
-  scheduledAt: string
-  startedAt: string | null
-  completedAt: string | null
-  overallImpression: string | null
-  wouldBuy: boolean | null
-  notes: string | null
-  house: House
-  buyer: Buyer
-  recordingCount: number
-}
-
 interface VisitSuggestion {
   id: string
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'
   suggestedAt: string
   message: string | null
   createdAt: string
+  isExpired?: boolean
   house: House
   buyer: Buyer
 }
 
+interface VisitStats {
+  total: number
+  scheduled: number
+  inProgress: number
+  completed: number
+  cancelled: number
+}
+
 export default function RealtorSchedule() {
-  const [visits, setVisits] = useState<Visit[]>([])
+  const router = useRouter()
+
+  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [stats, setStats] = useState<VisitStats | null>(null)
   const [suggestions, setSuggestions] = useState<VisitSuggestion[]>([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'visits' | 'suggestions'>('visits')
 
-  // Fetch visits and suggestions
-  const fetchData = useCallback(async () => {
+  // Modal states
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
+  const [showEventModal, setShowEventModal] = useState(false)
+
+  // Fetch calendar events
+  const fetchEvents = useCallback(async (start: Date, end: Date) => {
+    setLoading(true)
+    setError(null)
+
     try {
-      setLoading(true)
-      setError(null)
-
-      // Fetch visits for a 3-month window
-      const now = new Date()
-      const start = startOfMonth(addMonths(now, -1))
-      const end = endOfMonth(addMonths(now, 2))
-
       const params = new URLSearchParams({
-        from: start.toISOString(),
-        to: end.toISOString(),
-        limit: '100',
+        start: start.toISOString(),
+        end: end.toISOString(),
       })
 
-      // Fetch both visits and suggestions in parallel
-      const [visitsResponse, suggestionsResponse] = await Promise.all([
-        fetch(`/api/visits?${params.toString()}`),
-        fetch(`/api/visits/suggestions?${params.toString()}`),
-      ])
+      const response = await fetch(`/api/visits/calendar?${params}`)
+      const data = await response.json()
 
-      const visitsData = await visitsResponse.json()
-      const suggestionsData = await suggestionsResponse.json()
-
-      if (!visitsResponse.ok) {
-        throw new Error(visitsData.error?.message || 'Failed to fetch visits')
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to fetch events')
       }
 
-      setVisits(visitsData.data?.items || visitsData.data || [])
-      setSuggestions(suggestionsData.data || [])
+      setEvents(data.data.events)
+      setStats(data.data.stats)
     } catch (err) {
-      console.error('Fetch data error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load data')
+      console.error('Fetch events error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load calendar')
     } finally {
       setLoading(false)
     }
   }, [])
 
+  // Fetch pending suggestions (sent by realtor)
+  const fetchSuggestions = useCallback(async () => {
+    setLoadingSuggestions(true)
+    try {
+      const response = await fetch('/api/visits/suggestions')
+      const data = await response.json()
+
+      if (response.ok) {
+        const suggestionsArray = data.data?.items || data.data || []
+        // Filter only pending suggestions
+        const pendingSuggestions = suggestionsArray.filter(
+          (s: VisitSuggestion) => s.status === 'PENDING' && !s.isExpired
+        )
+        setSuggestions(pendingSuggestions)
+      }
+    } catch (err) {
+      console.error('Fetch suggestions error:', err)
+    } finally {
+      setLoadingSuggestions(false)
+    }
+  }, [])
+
+  // Initial load
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    const now = new Date()
+    fetchEvents(startOfMonth(now), endOfMonth(now))
+    fetchSuggestions()
+  }, [fetchEvents, fetchSuggestions])
 
-  // Group visits by date
-  const groupedVisits = visits.reduce(
-    (acc, visit) => {
-      const dateKey = format(parseISO(visit.scheduledAt), 'yyyy-MM-dd')
-      if (!acc[dateKey]) {
-        acc[dateKey] = []
-      }
-      acc[dateKey].push(visit)
-      return acc
+  // Handle range change
+  const handleRangeChange = useCallback(
+    (start: Date, end: Date) => {
+      fetchEvents(start, end)
     },
-    {} as Record<string, Visit[]>
+    [fetchEvents]
   )
 
-  const sortedDates = Object.keys(groupedVisits).sort()
+  // Handle event click
+  const handleEventClick = useCallback((event: CalendarEvent) => {
+    setSelectedEvent(event)
+    setShowEventModal(true)
+  }, [])
 
-  // Get status color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'COMPLETED':
-        return 'bg-green-50 border-green-200'
-      case 'CANCELLED':
-        return 'bg-red-50 border-red-200'
-      case 'IN_PROGRESS':
-        return 'bg-amber-50 border-amber-200'
-      default:
-        return 'bg-blue-50 border-blue-200'
-    }
+  // Handle view visit details
+  const handleViewVisit = (houseId: string) => {
+    // Find the houseBuyerId for this visit
+    router.push(`/realtor/houses/${houseId}`)
   }
 
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case 'COMPLETED':
-        return 'bg-green-100 text-green-700'
-      case 'CANCELLED':
-        return 'bg-red-100 text-red-700'
-      case 'IN_PROGRESS':
-        return 'bg-amber-100 text-amber-700'
-      default:
-        return 'bg-blue-100 text-blue-700'
-    }
-  }
+  const pendingSuggestionsCount = suggestions.length
 
-  const scheduledCount = visits.filter(v => v.status === 'SCHEDULED').length
-  const completedCount = visits.filter(v => v.status === 'COMPLETED').length
-  const pendingSuggestionsCount = suggestions.filter(s => s.status === 'PENDING').length
-
-  // Group suggestions by date
-  const groupedSuggestions = suggestions.reduce(
-    (acc, suggestion) => {
-      const dateKey = format(parseISO(suggestion.suggestedAt), 'yyyy-MM-dd')
-      if (!acc[dateKey]) {
-        acc[dateKey] = []
-      }
-      acc[dateKey].push(suggestion)
-      return acc
-    },
-    {} as Record<string, VisitSuggestion[]>
-  )
-
-  const sortedSuggestionDates = Object.keys(groupedSuggestions).sort()
-
-  const getSuggestionStatusColor = (status: string, suggestedAt: string) => {
-    const isExpired = status === 'PENDING' && new Date(suggestedAt) < new Date()
-    if (isExpired) return 'bg-gray-50 border-gray-200'
-    switch (status) {
-      case 'ACCEPTED':
-        return 'bg-green-50 border-green-200'
-      case 'REJECTED':
-        return 'bg-red-50 border-red-200'
-      case 'EXPIRED':
-        return 'bg-gray-50 border-gray-200'
-      default:
-        return 'bg-amber-50 border-amber-200'
-    }
-  }
-
-  const getSuggestionBadgeColor = (status: string, suggestedAt: string) => {
-    const isExpired = status === 'PENDING' && new Date(suggestedAt) < new Date()
-    if (isExpired) return 'bg-gray-100 text-gray-700'
-    switch (status) {
-      case 'ACCEPTED':
-        return 'bg-green-100 text-green-700'
-      case 'REJECTED':
-        return 'bg-red-100 text-red-700'
-      case 'EXPIRED':
-        return 'bg-gray-100 text-gray-700'
-      default:
-        return 'bg-amber-100 text-amber-700'
-    }
-  }
-
-  // Loading state
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Visit Schedule"
-          subtitle="Manage your clients' scheduled house visits"
-          icon={<CalendarIcon />}
-        />
-        <div className="space-y-6">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <div className="animate-pulse">
-                <div className="h-6 bg-gray-200 rounded w-1/4 mb-4" />
-                <div className="space-y-3">
-                  <div className="h-16 bg-gray-200 rounded" />
-                  <div className="h-16 bg-gray-200 rounded" />
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  // Error state
   if (error) {
     return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Visit Schedule"
-          subtitle="Manage your clients' scheduled house visits"
-          icon={<CalendarIcon />}
-        />
-        <NetworkError onRetry={fetchData} />
+      <div className="p-6">
+        <NetworkError onRetry={() => {
+          const now = new Date()
+          fetchEvents(startOfMonth(now), endOfMonth(now))
+        }} />
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <PageHeader
         title="Visit Schedule"
         subtitle="Manage your clients' scheduled house visits"
         icon={<CalendarIcon />}
-        stats={[
-          { label: 'Scheduled', value: scheduledCount },
-          { label: 'Completed', value: completedCount },
-          { label: 'Pending Suggestions', value: pendingSuggestionsCount },
-        ]}
+        stats={stats ? [
+          { label: 'Total', value: stats.total },
+          { label: 'Scheduled', value: stats.scheduled },
+          { label: 'In Progress', value: stats.inProgress },
+          { label: 'Completed', value: stats.completed },
+        ] : undefined}
       />
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab('visits')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'visits'
-              ? 'border-[#006AFF] text-[#006AFF]'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Visits ({visits.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('suggestions')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'suggestions'
-              ? 'border-[#006AFF] text-[#006AFF]'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Sent Suggestions ({suggestions.length})
-          {pendingSuggestionsCount > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">
-              {pendingSuggestionsCount} pending
-            </span>
+      {/* Pending Suggestions Sent */}
+      {!loadingSuggestions && pendingSuggestionsCount > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Pending Suggestions</h2>
+              <p className="text-sm text-gray-600">You have {pendingSuggestionsCount} suggestion{pendingSuggestionsCount !== 1 ? 's' : ''} awaiting client response</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {suggestions.slice(0, 3).map((suggestion) => (
+              <div key={suggestion.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                <div className="flex gap-4">
+                  {/* House Image */}
+                  {suggestion.house.images?.[0] && (
+                    <img
+                      src={suggestion.house.images[0]}
+                      alt={suggestion.house.address}
+                      className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                    />
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    {/* House Info */}
+                    <h3 className="font-medium text-gray-900 truncate">{suggestion.house.address}</h3>
+                    <p className="text-sm text-gray-500">{suggestion.house.city}, {suggestion.house.state}</p>
+
+                    {/* Suggested Date */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-sm font-medium text-gray-700">
+                        {format(new Date(suggestion.suggestedAt), 'PPP')} at {format(new Date(suggestion.suggestedAt), 'p')}
+                      </span>
+                    </div>
+
+                    {/* Client Info */}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Sent to: <span className="font-medium">{suggestion.buyer.name}</span>
+                    </p>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div className="flex-shrink-0">
+                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                      Awaiting Response
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {pendingSuggestionsCount > 3 && (
+            <p className="text-sm text-gray-500 mt-3 text-center">
+              And {pendingSuggestionsCount - 3} more pending suggestion{pendingSuggestionsCount - 3 !== 1 ? 's' : ''}...
+            </p>
           )}
-        </button>
+        </div>
+      )}
+
+      {/* Calendar */}
+      <div className="bg-white rounded-lg border border-gray-200 p-4 relative">
+        {loading && events.length === 0 ? (
+          <CalendarSkeleton />
+        ) : (
+          <Calendar
+            events={events}
+            onEventClick={handleEventClick}
+            onRangeChange={handleRangeChange}
+            loading={loading}
+          />
+        )}
       </div>
 
-      {/* Visits Tab */}
-      {activeTab === 'visits' && (
-        <>
-          {sortedDates.length === 0 ? (
-            <Card className="text-center py-12 mt-0">
-              <svg
-                className="w-16 h-16 mx-auto mb-4 text-gray-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No scheduled visits</h3>
-              <p className="text-gray-500">
-                Your clients haven&apos;t scheduled any visits yet.
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 justify-center text-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-[#006AFF]" />
+          <span className="text-gray-600">Scheduled</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-amber-500" />
+          <span className="text-gray-600">In Progress</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-green-500" />
+          <span className="text-gray-600">Completed</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-gray-400" />
+          <span className="text-gray-600">Cancelled</span>
+        </div>
+      </div>
+
+      {/* Event Detail Modal */}
+      <Modal
+        isOpen={showEventModal}
+        onClose={() => setShowEventModal(false)}
+        title="Visit Details"
+        size="md"
+      >
+        {selectedEvent && (
+          <div className="space-y-4">
+            {/* House image */}
+            {selectedEvent.extendedProps?.house.images?.[0] && (
+              <img
+                src={selectedEvent.extendedProps.house.images[0]}
+                alt={selectedEvent.extendedProps.house.address}
+                className="w-full h-48 object-cover rounded-lg"
+              />
+            )}
+
+            {/* House info */}
+            <div>
+              <h3 className="font-semibold text-lg">{selectedEvent.extendedProps?.house.address}</h3>
+              <p className="text-gray-600">
+                {selectedEvent.extendedProps?.house.city}, {selectedEvent.extendedProps?.house.state}
               </p>
-            </Card>
-          ) : (
-            <div className="space-y-6">
-              {sortedDates.map((dateKey) => {
-                const dayVisits = groupedVisits[dateKey]
-                const date = parseISO(dateKey)
-
-                return (
-                  <Card key={dateKey}>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                      {format(date, 'EEEE, MMMM d, yyyy')}
-                    </h2>
-                    <div className="space-y-3">
-                      {dayVisits
-                        .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
-                        .map((visit) => (
-                          <Link
-                            key={visit.id}
-                            href={`/realtor/houses/${visit.house.id}`}
-                            className={`flex items-center justify-between p-4 rounded-lg border transition-colors hover:border-gray-300 ${getStatusColor(visit.status)}`}
-                          >
-                            <div className="flex items-center gap-4">
-                              <div
-                                className={`w-16 text-center py-1 rounded font-medium text-sm ${getStatusBadgeColor(visit.status)}`}
-                              >
-                                {format(parseISO(visit.scheduledAt), 'h:mm a')}
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{visit.house.address}</p>
-                                <p className="text-sm text-gray-500">
-                                  {visit.house.city}, {visit.house.state}
-                                  {visit.house.bedrooms && ` - ${visit.house.bedrooms} bed`}
-                                  {visit.house.bathrooms && `, ${visit.house.bathrooms} bath`}
-                                </p>
-                                <p className="text-xs text-gray-400 mt-1">
-                                  Client: {visit.buyer.name}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              {visit.recordingCount > 0 && (
-                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" />
-                                  </svg>
-                                  {visit.recordingCount}
-                                </span>
-                              )}
-                              <span
-                                className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(visit.status)}`}
-                              >
-                                {visit.status.charAt(0) + visit.status.slice(1).toLowerCase().replace('_', ' ')}
-                              </span>
-                            </div>
-                          </Link>
-                        ))}
-                    </div>
-                  </Card>
-                )
-              })}
+              {selectedEvent.extendedProps?.house.price && (
+                <p className="text-lg font-bold" style={{ color: '#006AFF' }}>
+                  ${selectedEvent.extendedProps.house.price.toLocaleString()}
+                </p>
+              )}
             </div>
-          )}
-        </>
-      )}
 
-      {/* Suggestions Tab */}
-      {activeTab === 'suggestions' && (
-        <>
-          {sortedSuggestionDates.length === 0 ? (
-            <Card className="text-center py-12 mt-0">
-              <svg
-                className="w-16 h-16 mx-auto mb-4 text-gray-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            {/* Client */}
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-sm text-gray-500">Client</p>
+              <p className="font-medium">{selectedEvent.extendedProps?.buyer.name}</p>
+              <p className="text-sm text-gray-500">{selectedEvent.extendedProps?.buyer.email}</p>
+            </div>
+
+            {/* Status */}
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-1 rounded text-sm font-medium ${
+                selectedEvent.extendedProps?.status === 'SCHEDULED' ? 'bg-blue-100 text-blue-800' :
+                selectedEvent.extendedProps?.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-800' :
+                selectedEvent.extendedProps?.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                {selectedEvent.extendedProps?.status}
+              </span>
+
+              {selectedEvent.extendedProps?.overallImpression && (
+                <span className="px-2 py-1 rounded text-sm font-medium bg-purple-100 text-purple-800">
+                  {selectedEvent.extendedProps.overallImpression}
+                </span>
+              )}
+            </div>
+
+            {/* Schedule info */}
+            <div className="text-sm text-gray-600">
+              <p><strong>Scheduled:</strong> {format(selectedEvent.start, 'PPP p')}</p>
+              {selectedEvent.extendedProps?.startedAt && (
+                <p><strong>Started:</strong> {format(new Date(selectedEvent.extendedProps.startedAt), 'PPP p')}</p>
+              )}
+              {selectedEvent.extendedProps?.completedAt && (
+                <p><strong>Completed:</strong> {format(new Date(selectedEvent.extendedProps.completedAt), 'PPP p')}</p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-4 border-t">
+              <Button
+                onClick={() => handleViewVisit(selectedEvent.extendedProps?.house.id || '')}
+                variant="primary"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No suggestions sent</h3>
-              <p className="text-gray-500">
-                You haven&apos;t sent any visit suggestions to your clients yet.
-              </p>
-            </Card>
-          ) : (
-            <div className="space-y-6">
-              {sortedSuggestionDates.map((dateKey) => {
-                const daySuggestions = groupedSuggestions[dateKey]
-                const date = parseISO(dateKey)
-
-                return (
-                  <Card key={dateKey}>
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                      {format(date, 'EEEE, MMMM d, yyyy')}
-                    </h2>
-                    <div className="space-y-3">
-                      {daySuggestions
-                        .sort((a, b) => a.suggestedAt.localeCompare(b.suggestedAt))
-                        .map((suggestion) => {
-                          const isExpired = suggestion.status === 'PENDING' && new Date(suggestion.suggestedAt) < new Date()
-                          const displayStatus = isExpired ? 'Expired' : suggestion.status
-
-                          return (
-                            <div
-                              key={suggestion.id}
-                              className={`flex items-center justify-between p-4 rounded-lg border ${getSuggestionStatusColor(suggestion.status, suggestion.suggestedAt)}`}
-                            >
-                              <div className="flex items-center gap-4">
-                                <div
-                                  className={`w-16 text-center py-1 rounded font-medium text-sm ${getSuggestionBadgeColor(suggestion.status, suggestion.suggestedAt)}`}
-                                >
-                                  {format(parseISO(suggestion.suggestedAt), 'h:mm a')}
-                                </div>
-                                <div>
-                                  <p className="font-medium text-gray-900">{suggestion.house.address}</p>
-                                  <p className="text-sm text-gray-500">
-                                    {suggestion.house.city}, {suggestion.house.state}
-                                    {suggestion.house.bedrooms && ` - ${suggestion.house.bedrooms} bed`}
-                                    {suggestion.house.bathrooms && `, ${suggestion.house.bathrooms} bath`}
-                                  </p>
-                                  <p className="text-xs text-gray-400 mt-1">
-                                    Sent to: {suggestion.buyer.name}
-                                    {suggestion.message && ` • "${suggestion.message}"`}
-                                  </p>
-                                </div>
-                              </div>
-                              <span
-                                className={`px-3 py-1 rounded-full text-xs font-medium ${getSuggestionBadgeColor(suggestion.status, suggestion.suggestedAt)}`}
-                              >
-                                {displayStatus.charAt(0) + displayStatus.slice(1).toLowerCase()}
-                              </span>
-                            </div>
-                          )
-                        })}
-                    </div>
-                  </Card>
-                )
-              })}
+                View House Details
+              </Button>
+              <Button
+                onClick={() => setShowEventModal(false)}
+                variant="outline"
+              >
+                Close
+              </Button>
             </div>
-          )}
-        </>
-      )}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
