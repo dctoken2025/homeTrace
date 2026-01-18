@@ -18,6 +18,11 @@ interface InviteDetails {
   };
 }
 
+interface CurrentUser {
+  role: string;
+  email: string;
+}
+
 function AcceptInviteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -29,6 +34,33 @@ function AcceptInviteContent() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [isWrongRole, setIsWrongRole] = useState(false);
+
+  // Check if user is logged in and their role
+  useEffect(() => {
+    const checkCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data?.user) {
+            setCurrentUser({
+              role: data.data.user.role,
+              email: data.data.user.email,
+            });
+            // If logged in as non-buyer, flag it
+            if (data.data.user.role !== 'BUYER') {
+              setIsWrongRole(true);
+            }
+          }
+        }
+      } catch {
+        // Not logged in, that's fine
+      }
+    };
+    checkCurrentUser();
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -141,7 +173,18 @@ function AcceptInviteContent() {
     );
   }
 
-  if (needsAuth) {
+  if (needsAuth || isWrongRole) {
+    const handleLogout = async () => {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        setCurrentUser(null);
+        setIsWrongRole(false);
+        setNeedsAuth(true);
+      } catch {
+        // Ignore error
+      }
+    };
+
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full text-center">
@@ -150,47 +193,71 @@ function AcceptInviteContent() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Sign Up to Accept</h2>
-          <p className="text-gray-600 mb-4">
-            Create an account or sign in to connect with {invite?.realtor.name}.
-          </p>
 
-          <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
-            <p className="text-sm font-medium text-gray-900 mb-2">With HomeTrace you can:</p>
-            <ul className="text-sm text-gray-600 space-y-2">
-              <li className="flex items-start gap-2">
-                <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Browse homes your realtor shares with you
-              </li>
-              <li className="flex items-start gap-2">
-                <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Schedule and manage property visits
-              </li>
-              <li className="flex items-start gap-2">
-                <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Rate and compare properties easily
-              </li>
-            </ul>
-          </div>
+          {isWrongRole ? (
+            <>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Wrong Account Type</h2>
+              <p className="text-gray-600 mb-4">
+                You&apos;re currently logged in as a <span className="font-semibold">{currentUser?.role === 'REALTOR' ? 'Realtor' : currentUser?.role}</span> ({currentUser?.email}).
+              </p>
+              <p className="text-gray-600 mb-4">
+                To accept this invite from {invite?.realtor.name}, you need to sign in with a <span className="font-semibold">Buyer</span> account.
+              </p>
 
-          <div className="space-y-4">
-            <Link href={`/sign-up?invite=${token}`}>
-              <Button className="w-full">Create Account</Button>
-            </Link>
-            <Link href={`/sign-in?redirect=/accept-invite?token=${token}`}>
-              <Button variant="outline" className="w-full">Sign In</Button>
-            </Link>
-          </div>
+              <div className="space-y-4">
+                <Button onClick={handleLogout} className="w-full">
+                  Sign Out & Continue
+                </Button>
+                <Link href={currentUser?.role === 'REALTOR' ? '/realtor' : '/'}>
+                  <Button variant="outline" className="w-full">Go to My Dashboard</Button>
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Sign Up to Accept</h2>
+              <p className="text-gray-600 mb-4">
+                Create an account or sign in to connect with {invite?.realtor.name}.
+              </p>
 
-          <p className="text-xs text-gray-400 mt-6">
-            By creating an account, you agree to our Terms of Service and Privacy Policy.
-          </p>
+              <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+                <p className="text-sm font-medium text-gray-900 mb-2">With HomeTrace you can:</p>
+                <ul className="text-sm text-gray-600 space-y-2">
+                  <li className="flex items-start gap-2">
+                    <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Browse homes your realtor shares with you
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Schedule and manage property visits
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <svg className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Rate and compare properties easily
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-4">
+                <Link href={`/sign-up?invite=${token}`}>
+                  <Button className="w-full">Create Account</Button>
+                </Link>
+                <Link href={`/sign-in?redirect=/accept-invite?token=${token}`}>
+                  <Button variant="outline" className="w-full">Sign In</Button>
+                </Link>
+              </div>
+
+              <p className="text-xs text-gray-400 mt-6">
+                By creating an account, you agree to our Terms of Service and Privacy Policy.
+              </p>
+            </>
+          )}
         </Card>
       </div>
     );
