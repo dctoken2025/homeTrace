@@ -1,7 +1,24 @@
+'use client';
+
 import Link from 'next/link';
 import { HeroImageCarousel } from '@/components/HeroImageCarousel';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function LandingPage() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  const getDashboardLink = () => {
+    if (!user) return '/client';
+    switch (user.role) {
+      case 'ADMIN':
+        return '/admin';
+      case 'REALTOR':
+        return '/realtor';
+      default:
+        return '/client';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
@@ -17,19 +34,38 @@ export default function LandingPage() {
               <span className="text-xl font-bold text-gray-900">HomeTrace</span>
             </div>
             <div className="flex items-center gap-4">
-              <Link
-                href="/sign-in"
-                className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/sign-up"
-                className="text-white px-4 py-2 rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
-                style={{ background: 'linear-gradient(135deg, #006AFF 0%, #0D47A1 100%)' }}
-              >
-                Get Started
-              </Link>
+              {isLoading ? (
+                <div className="h-10 w-32 bg-gray-100 rounded-lg animate-pulse" />
+              ) : isAuthenticated && user ? (
+                <>
+                  <span className="text-gray-600 hidden sm:inline">
+                    Hi, {user.name?.split(' ')[0] || 'User'}
+                  </span>
+                  <Link
+                    href={getDashboardLink()}
+                    className="text-white px-4 py-2 rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
+                    style={{ background: 'linear-gradient(135deg, #006AFF 0%, #0D47A1 100%)' }}
+                  >
+                    Go to Dashboard
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/sign-in"
+                    className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    href="/sign-up"
+                    className="text-white px-4 py-2 rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
+                    style={{ background: 'linear-gradient(135deg, #006AFF 0%, #0D47A1 100%)' }}
+                  >
+                    Get Started
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
